@@ -16,11 +16,10 @@ import {
 import { 
   Coffee, ClipboardList, Users, Plus, CheckCircle, XCircle, Calendar, 
   LogOut, Package, MapPin, Home, Clock, CupSoda, Droplet, Shield, 
-  ArrowRight, Lock, User
+  ArrowRight, Lock, User, Ticket
 } from 'lucide-react';
 
 // --- 1. Firebase Configuration ---
-// Pastikan konfigurasi ini sesuai dengan Project Anda
 const firebaseConfig = {
   apiKey: "AIzaSyDVNvKd6x4Iw_BIvP6OFRB9cSrXXIW5SD4",
   authDomain: "claimlunchmkt.firebaseapp.com",
@@ -30,7 +29,6 @@ const firebaseConfig = {
   appId: "1:502120224174:web:d8f3b330ccdb31a825a43f"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
@@ -40,7 +38,6 @@ const getTodayString = () => formatDate(new Date());
 
 // --- 3. Shared Components ---
 
-// Wrapper untuk tampilan Mobile
 const MobileWrapper = ({ children, className = "" }) => (
   <div className="min-h-screen bg-gray-900 flex justify-center items-center font-sans">
     <div className={`w-full max-w-md h-[100dvh] bg-gray-50 flex flex-col relative overflow-hidden shadow-2xl md:rounded-3xl ${className}`}>
@@ -49,7 +46,6 @@ const MobileWrapper = ({ children, className = "" }) => (
   </div>
 );
 
-// Modal Kupon (Muncul saat karyawan berhasil klaim)
 const CouponModal = ({ data, onClose }) => {
   if (!data) return null;
 
@@ -59,7 +55,7 @@ const CouponModal = ({ data, onClose }) => {
         <div className="bg-blue-600 h-32 relative overflow-hidden flex items-center justify-center">
             <div className="text-center z-10">
                 <div className="bg-white/20 p-3 rounded-full inline-block mb-2 backdrop-blur-sm">
-                  <Coffee className="text-white" size={32} />
+                  <Ticket className="text-white" size={32} />
                 </div>
                 <h3 className="text-white font-bold text-xl tracking-wider">KUPON KLAIM</h3>
                 <p className="text-blue-100 text-[10px] tracking-[0.2em] uppercase">PT Global Service Indonesia</p>
@@ -80,12 +76,14 @@ const CouponModal = ({ data, onClose }) => {
                     <p className="font-bold text-xs text-slate-700">{data.date}</p>
                 </div>
             </div>
-            <div className="border-2 border-dashed border-yellow-400 bg-yellow-50/50 rounded-xl p-4 mb-6">
-                <p className="text-[10px] text-yellow-600 font-bold uppercase tracking-widest">Status Kupon</p>
-                <div className="text-2xl font-black text-yellow-500 uppercase tracking-[0.2em] mt-1">PENDING</div>
+            <div className={`border-2 border-dashed rounded-xl p-4 mb-6 ${data.status === 'approved' ? 'border-green-400 bg-green-50' : data.status === 'rejected' ? 'border-red-400 bg-red-50' : 'border-yellow-400 bg-yellow-50'}`}>
+                <p className={`text-[10px] font-bold uppercase tracking-widest ${data.status === 'approved' ? 'text-green-600' : data.status === 'rejected' ? 'text-red-600' : 'text-yellow-600'}`}>Status Kupon</p>
+                <div className={`text-2xl font-black uppercase tracking-[0.2em] mt-1 ${data.status === 'approved' ? 'text-green-500' : data.status === 'rejected' ? 'text-red-500' : 'text-yellow-500'}`}>
+                  {data.status || 'PENDING'}
+                </div>
             </div>
             <button onClick={onClose} className="w-full bg-slate-800 text-white font-bold py-3.5 rounded-xl shadow-lg active:scale-95 transition-transform">
-                Tutup & Cek Riwayat
+                Tutup
             </button>
         </div>
       </div>
@@ -93,7 +91,7 @@ const CouponModal = ({ data, onClose }) => {
   );
 };
 
-// --- 4. Login Screen (BYPASS AUTHENTICATION) ---
+// --- 4. Login Screen ---
 const LoginScreen = ({ setManualUser }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -105,10 +103,8 @@ const LoginScreen = ({ setManualUser }) => {
     setLoading(true);
     setError('');
 
-    // SIMULASI LOGIN (Cek Username Password Hardcode)
     setTimeout(() => {
         if (email === 'admin@gsi.co.id' && password === 'Admin123!') {
-            // Sukses Admin
             setManualUser({
                 uid: 'admin-gsi-id',
                 email: 'admin@gsi.co.id',
@@ -117,9 +113,8 @@ const LoginScreen = ({ setManualUser }) => {
             });
         } 
         else if (email === 'karyawan@gsi.co.id' && password === 'User123!') {
-            // Sukses Karyawan
             setManualUser({
-                uid: 'karyawan-gsi-001', // ID statis agar riwayat tersimpan untuk demo
+                uid: 'karyawan-gsi-001', 
                 email: 'karyawan@gsi.co.id',
                 role: 'employee',
                 displayName: 'Karyawan GSI'
@@ -135,7 +130,6 @@ const LoginScreen = ({ setManualUser }) => {
   return (
     <MobileWrapper className="bg-gradient-to-br from-slate-800 to-indigo-900">
       <div className="flex-1 flex flex-col justify-center px-8 relative z-10">
-        
         <div className="bg-white/10 backdrop-blur-md w-24 h-24 rounded-3xl flex items-center justify-center mb-6 shadow-xl mx-auto border border-white/10">
           <Coffee size={48} className="text-blue-300" />
         </div>
@@ -153,7 +147,6 @@ const LoginScreen = ({ setManualUser }) => {
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
-          
           <div className="relative">
             <Lock className="absolute left-4 top-3.5 text-gray-400" size={20} />
             <input 
@@ -164,9 +157,7 @@ const LoginScreen = ({ setManualUser }) => {
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
-
           {error && <div className="bg-red-500/20 border border-red-500/50 p-3 rounded-xl"><p className="text-red-200 text-xs text-center font-bold">{error}</p></div>}
-
           <button
             type="submit"
             disabled={loading}
@@ -187,7 +178,6 @@ const LoginScreen = ({ setManualUser }) => {
                 </button>
             </div>
         </div>
-
       </div>
     </MobileWrapper>
   );
@@ -201,7 +191,6 @@ const AdminDashboard = ({ user, logout }) => {
   const [newItemName, setNewItemName] = useState('');
   const [newItemStock, setNewItemStock] = useState(0);
 
-  // REAL-TIME: Ambil data Inventory
   useEffect(() => {
     const q = query(collection(db, 'inventory'), orderBy('createdAt', 'desc'));
     return onSnapshot(q, (snap) => {
@@ -209,7 +198,6 @@ const AdminDashboard = ({ user, logout }) => {
     });
   }, []);
 
-  // REAL-TIME: Ambil data Klaim Pending
   useEffect(() => {
     const q = query(
         collection(db, 'claims'),
@@ -237,36 +225,47 @@ const AdminDashboard = ({ user, logout }) => {
     }
   };
 
+  // --- FIX ERROR APPROVE ---
   const processClaim = async (claim, isApproved) => {
     try {
+        // Validasi: Pastikan inventoryId ada
+        if (!claim.inventoryId) {
+            alert("Error: Data stok tidak valid (ID Hilang). Silakan tolak klaim ini.");
+            return;
+        }
+
         const claimRef = doc(db, 'claims', claim.id);
         
         if (isApproved) {
             await runTransaction(db, async (t) => {
+                // Cek ketersediaan dokumen stok
+                const invRef = doc(db, 'inventory', claim.inventoryId);
+                const invDoc = await t.get(invRef);
+                
+                if (!invDoc.exists()) {
+                    throw "Data stok minuman ini sudah dihapus dari master!";
+                }
+
                 // 1. Update status klaim
                 t.update(claimRef, { status: 'approved', processedAt: serverTimestamp(), processedBy: user.email });
                 
                 // 2. Kurangi Stok Gudang
-                const invRef = doc(db, 'inventory', claim.inventoryId);
-                const invDoc = await t.get(invRef);
-                if (invDoc.exists()) {
-                    const currentStock = invDoc.data().warehouseStock || 0;
-                    const newStock = Math.max(0, currentStock - 1);
-                    t.update(invRef, { warehouseStock: newStock });
-                }
+                const currentStock = invDoc.data().warehouseStock || 0;
+                const newStock = Math.max(0, currentStock - 1);
+                t.update(invRef, { warehouseStock: newStock });
             });
         } else {
             await updateDoc(claimRef, { status: 'rejected', processedAt: serverTimestamp(), processedBy: user.email });
         }
     } catch (e) { 
         console.error("Error processing claim:", e);
-        alert("Gagal memproses data.");
+        // Tampilkan pesan error yang lebih jelas ke user
+        alert("Gagal memproses: " + (typeof e === 'string' ? e : e.message));
     }
   };
 
   return (
     <MobileWrapper>
-      {/* Header Admin */}
       <div className="bg-indigo-900 text-white p-6 pt-10 rounded-b-[2.5rem] shadow-lg z-10 flex-shrink-0">
         <div className="flex justify-between items-center mb-6">
           <div>
@@ -325,7 +324,6 @@ const AdminDashboard = ({ user, logout }) => {
                        <div className="text-xs text-slate-400 font-mono">{claim.timestamp ? new Date(claim.timestamp.seconds * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''}</div>
                     </div>
                   </div>
-                  
                   <div className="grid grid-cols-2 gap-3 mt-2">
                     <button onClick={() => processClaim(claim, true)} className="bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100 py-2.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2">
                       <CheckCircle size={16}/> Terima
@@ -347,8 +345,9 @@ const AdminDashboard = ({ user, logout }) => {
                 <Plus size={16} className="text-indigo-500"/> Tambah Stok Gudang
               </h3>
               <form onSubmit={handleAddInventory} className="flex gap-2">
-                <input required placeholder="Nama Minuman" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" value={newItemName} onChange={e=>setNewItemName(e.target.value)} />
-                <input required type="number" placeholder="Qty" className="w-20 bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center" value={newItemStock} onChange={e=>setNewItemStock(e.target.value)} />
+                {/* --- FIX FONT COLOR: text-gray-900 --- */}
+                <input required placeholder="Nama Minuman" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500" value={newItemName} onChange={e=>setNewItemName(e.target.value)} />
+                <input required type="number" placeholder="Qty" className="w-20 bg-slate-50 border border-slate-200 rounded-xl px-3 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center" value={newItemStock} onChange={e=>setNewItemStock(e.target.value)} />
                 <button className="bg-indigo-600 text-white p-3 rounded-xl shadow-md hover:bg-indigo-700 transition-transform active:scale-95"><Plus size={20}/></button>
               </form>
             </div>
@@ -383,12 +382,13 @@ const AdminDashboard = ({ user, logout }) => {
 const EmployeeDashboard = ({ user, logout }) => {
   const [activeTab, setActiveTab] = useState('menu'); 
   const [menuItems, setMenuItems] = useState([]);
-  const [hasClaimedToday, setHasClaimedToday] = useState(false);
+  
+  // State untuk Kupon
+  const [todaysClaim, setTodaysClaim] = useState(null); // Menyimpan objek klaim hari ini
   const [showCoupon, setShowCoupon] = useState(false);
-  const [lastClaimData, setLastClaimData] = useState(null);
+  
   const today = getTodayString();
 
-  // REAL-TIME: Ambil Menu & Stok
   useEffect(() => {
     const q = query(collection(db, 'inventory'), orderBy('name'));
     return onSnapshot(q, (snap) => {
@@ -396,22 +396,28 @@ const EmployeeDashboard = ({ user, logout }) => {
     });
   }, []);
 
-  // REAL-TIME: Cek Status Klaim Hari Ini
+  // Update Logic: Simpan data klaim hari ini untuk ditampilkan di Dashboard
   useEffect(() => {
     if (!user) return;
     const q = query(
       collection(db, 'claims'),
       where('userId', '==', user.uid),
       where('date', '==', today),
-      where('status', '!=', 'rejected') // Jika ditolak, boleh klaim lagi (opsional logic)
+      where('status', '!=', 'rejected')
     );
     return onSnapshot(q, (snap) => {
-      setHasClaimedToday(!snap.empty);
+      if (!snap.empty) {
+        // Ambil data klaim pertama yang valid
+        const docData = snap.docs[0];
+        setTodaysClaim({ id: docData.id, ...docData.data() });
+      } else {
+        setTodaysClaim(null);
+      }
     });
   }, [user, today]);
 
   const handleOrder = async (item) => {
-    if (hasClaimedToday) return;
+    if (todaysClaim) return;
     if (item.warehouseStock <= 0) {
         alert("Maaf, Stok Habis!");
         return;
@@ -429,10 +435,10 @@ const EmployeeDashboard = ({ user, logout }) => {
             timestamp: serverTimestamp()
         };
 
-        await addDoc(collection(db, 'claims'), claimData);
-
-        // Tampilkan Kupon (Menggunakan timestamp lokal untuk UI instan)
-        setLastClaimData({...claimData, timestamp: new Date()});
+        const docRef = await addDoc(collection(db, 'claims'), claimData);
+        
+        // Langsung set state lokal untuk tampilan instan
+        setTodaysClaim({ id: docRef.id, ...claimData, timestamp: new Date() });
         setShowCoupon(true);
 
     } catch (e) { 
@@ -441,15 +447,11 @@ const EmployeeDashboard = ({ user, logout }) => {
     }
   };
 
-  const closeCouponAndGoHistory = () => {
-    setShowCoupon(false);
-    setActiveTab('history');
-  };
-
   return (
     <MobileWrapper className="bg-gray-50">
       
-      {showCoupon && <CouponModal data={lastClaimData} onClose={closeCouponAndGoHistory} />}
+      {/* Tampilkan Kupon jika showCoupon true ATAU user klik tombol lihat tiket */}
+      {showCoupon && <CouponModal data={todaysClaim} onClose={() => setShowCoupon(false)} />}
 
       <div className="sticky top-0 bg-white z-20 px-6 pt-8 pb-4 shadow-sm rounded-b-[2rem]">
         <div className="flex justify-between items-center mb-2">
@@ -471,16 +473,27 @@ const EmployeeDashboard = ({ user, logout }) => {
       <div className="flex-1 overflow-y-auto pb-24 no-scrollbar p-6 pt-4">
         {activeTab === 'menu' && (
           <div className="space-y-6 animate-in fade-in duration-300">
+            {/* --- CARD STATUS HARIAN (Updated) --- */}
             <div className={`rounded-3xl p-5 text-white shadow-xl relative overflow-hidden transition-all
-              ${hasClaimedToday ? 'bg-black shadow-gray-900' : 'bg-gradient-to-r from-blue-600 to-indigo-600 shadow-blue-200'}`}>
+              ${todaysClaim ? 'bg-slate-800 shadow-slate-200' : 'bg-gradient-to-r from-blue-600 to-indigo-600 shadow-blue-200'}`}>
                <div className="relative z-10 flex justify-between items-center">
                  <div>
                    <p className="text-white/80 text-xs font-medium mb-1">Status Harian</p>
                    <h2 className="text-2xl font-bold flex items-center gap-2">
-                     {hasClaimedToday ? 'Sudah Klaim' : '1 Jatah Tersedia'}
-                     {hasClaimedToday && <CheckCircle size={20} />}
+                     {todaysClaim ? 'Sudah Klaim' : '1 Jatah Tersedia'}
+                     {todaysClaim && <CheckCircle size={20} className="text-green-400" />}
                    </h2>
-                   <p className="text-xs text-white/60 mt-1">{today}</p>
+                   
+                   {/* Tombol Lihat Kupon (FITUR BARU) */}
+                   {todaysClaim && (
+                      <button 
+                        onClick={() => setShowCoupon(true)}
+                        className="mt-3 bg-white/20 hover:bg-white/30 backdrop-blur-sm px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all active:scale-95"
+                      >
+                        <Ticket size={14}/> Lihat E-Tiket
+                      </button>
+                   )}
+                   {!todaysClaim && <p className="text-xs text-white/60 mt-1">{today}</p>}
                  </div>
                  <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm">
                    <ClipboardList className="text-white" size={24} />
@@ -496,7 +509,7 @@ const EmployeeDashboard = ({ user, logout }) => {
               <div className="space-y-3">
                  {menuItems.length === 0 && <p className="text-center text-gray-400 text-sm py-8">Belum ada stok tersedia.</p>}
                  {menuItems.map(item => {
-                      const isAvailable = !hasClaimedToday && item.warehouseStock > 0;
+                      const isAvailable = !todaysClaim && item.warehouseStock > 0;
                       return (
                         <div key={item.id} className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 flex gap-4 transition-all hover:shadow-md">
                            <div className="w-20 h-20 rounded-xl flex items-center justify-center flex-shrink-0 bg-blue-50 text-blue-400">
@@ -519,7 +532,7 @@ const EmployeeDashboard = ({ user, logout }) => {
                                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
                                     : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'}`}
                               >
-                                {hasClaimedToday ? 'Besok Lagi' : item.warehouseStock === 0 ? 'Habis' : 'Klaim Sekarang'}
+                                {todaysClaim ? 'Besok Lagi' : item.warehouseStock === 0 ? 'Habis' : 'Klaim Sekarang'}
                               </button>
                            </div>
                         </div>
@@ -595,7 +608,6 @@ const HistorySection = ({ user }) => {
 
 // --- 7. Main App ---
 const App = () => {
-  // State User Lokal (Hanya di React, tidak cek ke Firebase Auth)
   const [user, setUser] = useState(null);
 
   const handleLogout = () => {
@@ -606,7 +618,6 @@ const App = () => {
     return <LoginScreen setManualUser={setUser} />;
   }
   
-  // Routing Sederhana
   if (user.role === 'admin') {
       return <AdminDashboard user={user} logout={handleLogout} />;
   }

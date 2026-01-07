@@ -207,7 +207,7 @@ const LoginScreen = ({ onLoginSuccess }) => {
         {/* LOGO SECTION - Menggunakan link raw yang benar */}
         <div className="flex justify-center mb-6">
             <img 
-                src="https://github.com/chairulbreaks06-NR/ClaimSofdrinkYard/blob/main/logo%20Claim%20Sofdrink%20(1).png?raw=true" 
+                src="https://github.com/chairulbreaks06-NR/ClaimSofdrinkYard/blob/main/logo%20Claim%20Sofdrink%20(1).png" 
                 alt="Logo Claim Softdrink"
                 className="w-auto h-40 object-contain drop-shadow-2xl animate-in zoom-in duration-500"
             />

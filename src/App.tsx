@@ -10,7 +10,7 @@ import {
   LogOut, Package, MapPin, Clock, Shield, ArrowRight, Lock, 
   User, Edit, Trash2, UserPlus, Building2, WifiOff,
   LayoutDashboard, History, UserCircle, Search, Briefcase, 
-  Loader2, BarChart3, TrendingUp
+  Loader2, BarChart3, TrendingUp, CalendarDays
 } from 'lucide-react';
 
 // --- 1. Firebase Configuration ---
@@ -26,10 +26,9 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// --- OFFLINE PERSISTENCE ---
 try {
   enableIndexedDbPersistence(db).catch((err) => {
-    if (err.code === 'failed-precondition') console.log('Persistence failed: Multiple tabs open');
+    if (err.code === 'failed-precondition') console.log('Persistence failed');
     else if (err.code === 'unimplemented') console.log('Persistence not supported');
   });
 } catch (e) { console.log("Persistence init error:", e); }
@@ -37,7 +36,13 @@ try {
 // --- 2. Helpers ---
 const formatDate = (date) => date.toISOString().split('T')[0];
 const getTodayString = () => formatDate(new Date());
+const getDayName = () => {
+    const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    return days[new Date().getDay()];
+};
+
 const YARDS = ['Yard Cakung', 'Yard Sukapura', 'Yard Jababeka'];
+const DAYS_OPTION = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu', 'Setiap Hari'];
 
 const formatDateTime = (timestamp) => {
   if (!timestamp) return '-';
@@ -229,6 +234,7 @@ const AdminDashboard = ({ user, area, logout }) => {
 
   const [newItemName, setNewItemName] = useState('');
   const [newItemStock, setNewItemStock] = useState('');
+  const [newItemDay, setNewItemDay] = useState('Setiap Hari'); // STATE HARI BARU
   const [editingItem, setEditingItem] = useState(null); 
   const [newUserNrp, setNewUserNrp] = useState('');
   const [newUserPass, setNewUserPass] = useState('');
@@ -272,14 +278,32 @@ const AdminDashboard = ({ user, area, logout }) => {
     if (!newItemName || !newItemStock) return;
     try {
         if (editingItem) {
-            await updateDoc(doc(db, 'inventory', editingItem.id), { name: newItemName, warehouseStock: parseInt(newItemStock) });
+            await updateDoc(doc(db, 'inventory', editingItem.id), { 
+                name: newItemName, 
+                warehouseStock: parseInt(newItemStock),
+                day: newItemDay // Update hari
+            });
             setEditingItem(null);
         } else {
-            await addDoc(collection(db, 'inventory'), { name: newItemName, warehouseStock: parseInt(newItemStock), area, createdAt: serverTimestamp() });
+            await addDoc(collection(db, 'inventory'), { 
+                name: newItemName, 
+                warehouseStock: parseInt(newItemStock), 
+                area, 
+                day: newItemDay, // Simpan hari
+                createdAt: serverTimestamp() 
+            });
         }
-        setNewItemName(''); setNewItemStock(''); showSuccess("Stok Disimpan");
+        setNewItemName(''); setNewItemStock(''); setNewItemDay('Setiap Hari'); showSuccess("Stok Disimpan");
     } catch(err) { alert("Error: " + err.message); }
   };
+
+  const startEdit = (item) => {
+      setEditingItem(item);
+      setNewItemName(item.name);
+      setNewItemStock(item.warehouseStock);
+      setNewItemDay(item.day || 'Setiap Hari');
+      window.scrollTo(0,0);
+  }
 
   const handleAddUser = async (e) => {
       e.preventDefault();
@@ -305,7 +329,6 @@ const AdminDashboard = ({ user, area, logout }) => {
       return { totalClaims, chartData };
   }, [allClaims]);
 
-  // --- RENDER ADMIN ---
   const renderHistory = () => {
       const filteredClaims = allClaims.filter(item => {
           return item.userName.toLowerCase().includes(historySearch.toLowerCase());
@@ -376,9 +399,13 @@ const AdminDashboard = ({ user, area, logout }) => {
                     <input required placeholder="Nama Minuman" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" value={newItemName} onChange={e=>setNewItemName(e.target.value)} />
                     <div className="flex gap-2">
                         <input required type="number" placeholder="Jumlah" className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" value={newItemStock} onChange={e=>setNewItemStock(e.target.value)} />
-                        <button type="submit" className={`px-4 py-2 rounded-lg text-white font-bold text-sm ${editingItem ? 'bg-orange-500' : 'bg-indigo-600'}`}>{editingItem ? 'Update' : 'Simpan'}</button>
+                        {/* SELECT HARI */}
+                        <select className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" value={newItemDay} onChange={e=>setNewItemDay(e.target.value)}>
+                            {DAYS_OPTION.map(d => <option key={d} value={d}>{d}</option>)}
+                        </select>
                     </div>
-                    {editingItem && <button type="button" onClick={()=>{setEditingItem(null); setNewItemName(''); setNewItemStock('');}} className="w-full bg-gray-100 text-gray-500 py-1 rounded text-xs">Batal Edit</button>}
+                    <button type="submit" className={`px-4 py-2 rounded-lg text-white font-bold text-sm w-full ${editingItem ? 'bg-orange-500' : 'bg-indigo-600'}`}>{editingItem ? 'Update' : 'Simpan'}</button>
+                    {editingItem && <button type="button" onClick={()=>{setEditingItem(null); setNewItemName(''); setNewItemStock(''); setNewItemDay('Setiap Hari');}} className="w-full bg-gray-100 text-gray-500 py-2 rounded-lg text-xs font-bold">Batal Edit</button>}
                 </form>
             </div>
             <div className="space-y-2">
@@ -386,10 +413,16 @@ const AdminDashboard = ({ user, area, logout }) => {
                     <div key={item.id} className="bg-white p-3 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center">
                         <div className="flex items-center gap-3">
                             <div className="bg-indigo-50 p-2 rounded-lg"><Coffee size={16} className="text-indigo-500"/></div>
-                            <div><div className="font-bold text-slate-700 text-sm">{item.name}</div><div className="text-[10px] text-gray-400">Sisa: {item.warehouseStock}</div></div>
+                            <div>
+                                <div className="font-bold text-slate-700 text-sm">{item.name}</div>
+                                <div className="text-[10px] text-gray-400 flex items-center gap-2">
+                                    <span>Sisa: {item.warehouseStock}</span>
+                                    <span className="bg-gray-100 px-1.5 rounded text-gray-500">{item.day || 'Setiap Hari'}</span>
+                                </div>
+                            </div>
                         </div>
                         <div className="flex gap-2">
-                            <button onClick={()=>{setEditingItem(item); setNewItemName(item.name); setNewItemStock(item.warehouseStock); window.scrollTo(0,0);}} className="p-2 bg-orange-50 text-orange-500 rounded-lg"><Edit size={14}/></button>
+                            <button onClick={()=>startEdit(item)} className="p-2 bg-orange-50 text-orange-500 rounded-lg"><Edit size={14}/></button>
                             <button onClick={()=>confirm("Hapus?") && deleteDoc(doc(db, 'inventory', item.id))} className="p-2 bg-red-50 text-red-500 rounded-lg"><Trash2 size={14}/></button>
                         </div>
                     </div>
@@ -463,7 +496,15 @@ const EmployeeDashboard = ({ user, area, logout }) => {
 
   useEffect(() => {
     const q = query(collection(db, 'inventory'), where('area', '==', area), orderBy('name'));
-    return onSnapshot(q, (snap) => setMenuItems(snap.docs.map(d => ({id: d.id, ...d.data()}))));
+    return onSnapshot(q, (snap) => {
+        const allItems = snap.docs.map(d => ({id: d.id, ...d.data()}));
+        // FILTER MENU BERDASARKAN HARI
+        const todayName = getDayName();
+        const filteredMenu = allItems.filter(item => {
+            return !item.day || item.day === 'Setiap Hari' || item.day === todayName;
+        });
+        setMenuItems(filteredMenu);
+    });
   }, [area]);
 
   useEffect(() => {
@@ -488,7 +529,6 @@ const EmployeeDashboard = ({ user, area, logout }) => {
       historyList.forEach(item => {
           counts[item.drinkName] = (counts[item.drinkName] || 0) + 1;
       });
-      // Convert ke array dan sort
       const breakdown = Object.keys(counts).map(name => ({
           name,
           count: counts[name],
@@ -549,9 +589,13 @@ const EmployeeDashboard = ({ user, area, logout }) => {
              <ClipboardList className="absolute right-4 bottom-4 text-white/10" size={60} />
          </div>
 
-         <h3 className="font-bold text-slate-700 mb-4">Menu Tersedia</h3>
+         <div className="flex justify-between items-center mb-4">
+            <h3 className="font-bold text-slate-700">Menu Tersedia</h3>
+            <span className="text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-500 font-bold flex items-center gap-1"><CalendarDays size={12}/> {getDayName()}</span>
+         </div>
+         
          <div className="space-y-3">
-             {menuItems.length === 0 && <p className="text-gray-400 text-center text-sm">Menu belum tersedia.</p>}
+             {menuItems.length === 0 && <p className="text-gray-400 text-center text-sm py-10">Tidak ada menu untuk hari ini.</p>}
              {menuItems.map(item => (
                  <div key={item.id} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
                      <div className="flex items-center gap-4">
@@ -578,8 +622,6 @@ const EmployeeDashboard = ({ user, area, logout }) => {
   const renderHistory = () => (
       <div className="p-6 pb-28 w-full">
           <h3 className="font-bold text-slate-700 mb-4 text-xl">Riwayat & Statistik</h3>
-          
-          {/* STATS SECTION START */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-6">
               <div className="flex items-center gap-4 mb-4 border-b border-slate-50 pb-4">
                   <div className="bg-blue-50 p-3 rounded-full text-blue-600">
@@ -605,7 +647,6 @@ const EmployeeDashboard = ({ user, area, logout }) => {
                   {userStats.total === 0 && <p className="text-center text-xs text-gray-400">Belum ada statistik.</p>}
               </div>
           </div>
-          {/* STATS SECTION END */}
 
           <h4 className="font-bold text-slate-700 mb-3 text-sm">Daftar Riwayat</h4>
           <div className="space-y-3">
@@ -640,7 +681,7 @@ const EmployeeDashboard = ({ user, area, logout }) => {
                   <span className="flex items-center gap-3"><LogOut size={18}/> Keluar Akun</span><ArrowRight size={16} className="text-red-300"/>
               </button>
           </div>
-          <p className="text-center text-gray-300 text-xs mt-8">Versi Aplikasi 2.5.0</p>
+          <p className="text-center text-gray-300 text-xs mt-8">Versi Aplikasi 2.6.0</p>
       </div>
   );
 
@@ -651,13 +692,11 @@ const EmployeeDashboard = ({ user, area, logout }) => {
          <div><h2 className="text-lg font-bold text-slate-800">{activeTab === 'dashboard' ? 'Beranda' : activeTab === 'history' ? 'Riwayat' : 'Profil Saya'}</h2><p className="text-xs text-slate-400 flex items-center gap-1"><MapPin size={10}/> {area}</p></div>
          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">{user.displayName.charAt(0)}</div>
       </div>
-      
       <div className="flex-1 overflow-y-auto h-full w-full">
           {activeTab === 'dashboard' && renderDashboard()}
           {activeTab === 'history' && renderHistory()}
           {activeTab === 'profile' && renderProfile()}
       </div>
-
       <div className="absolute bottom-0 w-full bg-white border-t border-slate-100 py-3 px-6 pb-6 rounded-t-2xl shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-30 flex justify-between items-center">
           <button onClick={() => setActiveTab('dashboard')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'dashboard' ? 'text-blue-600 scale-105' : 'text-slate-400'}`}>
               <div className={`p-1.5 rounded-xl ${activeTab === 'dashboard' ? 'bg-blue-50' : 'bg-transparent'}`}><LayoutDashboard size={22} strokeWidth={activeTab === 'dashboard' ? 2.5 : 2} /></div>

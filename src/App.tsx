@@ -8,10 +8,12 @@ import {
 import { 
   Coffee, ClipboardList, Users, CheckCircle, Ticket, 
   LogOut, Package, MapPin, Clock, Shield, ArrowRight, Lock, 
-  User, Edit, Trash2, UserPlus, Building2, Wifi, WifiOff
+  User, Edit, Trash2, UserPlus, Building2, Wifi, WifiOff,
+  LayoutDashboard, History, UserCircle
 } from 'lucide-react';
 
 // --- 1. Firebase Configuration ---
+// GANTI DENGAN CONFIG ANDA JIKA BERBEDA
 const firebaseConfig = {
   apiKey: "AIzaSyDVNvKd6x4Iw_BIvP6OFRB9cSrXXIW5SD4",
   authDomain: "claimlunchmkt.firebaseapp.com",
@@ -24,7 +26,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// --- AKTIFKAN OFFLINE PERSISTENCE (Agar data tersimpan saat sinyal hilang & sync saat online) ---
+// --- OFFLINE PERSISTENCE ---
 try {
   enableIndexedDbPersistence(db).catch((err) => {
     if (err.code === 'failed-precondition') {
@@ -34,51 +36,43 @@ try {
     }
   });
 } catch (e) {
-  console.log("Persistence already enabled or error:", e);
+  console.log("Persistence init error:", e);
 }
 
-// --- 2. Helpers & Constants ---
+// --- 2. Helpers ---
 const formatDate = (date) => date.toISOString().split('T')[0];
 const getTodayString = () => formatDate(new Date());
 
 const YARDS = ['Yard Cakung', 'Yard Sukapura', 'Yard Jababeka'];
 
-// Helper untuk format Jam dan Tanggal Indonesia
 const formatDateTime = (timestamp) => {
   if (!timestamp) return '-';
-  // Handle Firebase Timestamp or standard Date (untuk offline data yg belum punya timestamp server)
   const date = timestamp.toDate ? timestamp.toDate() : new Date(); 
-  
   return new Intl.DateTimeFormat('id-ID', {
-    day: 'numeric', month: 'long', year: 'numeric',
+    day: 'numeric', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit'
   }).format(date);
 };
 
 // --- 3. Shared Components ---
 
-// Indikator Status Online/Offline
 const ConnectionStatus = () => {
     const [isOnline, setIsOnline] = useState(navigator.onLine);
-
     useEffect(() => {
         const handleOnline = () => setIsOnline(true);
         const handleOffline = () => setIsOnline(false);
-
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
-
         return () => {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
         };
     }, []);
 
-    if (isOnline) return null; // Sembunyikan jika online
-
+    if (isOnline) return null;
     return (
         <div className="bg-red-500 text-white text-[10px] font-bold text-center py-1 absolute top-0 w-full z-50 flex items-center justify-center gap-1">
-            <WifiOff size={12} /> KONEKSI TERPUTUS - Mode Offline (Data akan disinkronkan nanti)
+            <WifiOff size={12} /> MODE OFFLINE
         </div>
     );
 };
@@ -92,13 +86,11 @@ const MobileWrapper = ({ children, className = "" }) => (
   </div>
 );
 
-// --- MODAL KUPON ---
 const CouponModal = ({ data, onClose }) => {
   if (!data) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
       <div className="bg-white w-full max-w-xs rounded-3xl overflow-hidden relative shadow-2xl animate-in zoom-in-95 duration-300">
-        {/* Header Biru */}
         <div className="bg-blue-600 h-32 flex items-center justify-center text-center p-4 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-full bg-white/10 opacity-50" style={{backgroundImage: 'radial-gradient(circle, #fff 2px, transparent 2.5px)', backgroundSize: '10px 10px'}}></div>
             <div className="relative z-10">
@@ -110,22 +102,17 @@ const CouponModal = ({ data, onClose }) => {
             </div>
         </div>
         
-        {/* Body Tiket */}
         <div className="p-6 pt-6 text-center bg-white relative">
             <div className="absolute -top-3 -left-3 w-6 h-6 bg-gray-900 rounded-full"></div>
             <div className="absolute -top-3 -right-3 w-6 h-6 bg-gray-900 rounded-full"></div>
 
             <h2 className="text-2xl font-black text-slate-800 mb-2 leading-tight">{data.drinkName}</h2>
-            <p className="text-xs text-gray-400 mb-6">Tunjukkan kupon ini ke petugas pantry</p>
-
-            {/* Status Box */}
             <div className={`border-2 border-dashed rounded-xl p-3 mb-6 ${data.status === 'approved' ? 'border-green-400 bg-green-50' : data.status === 'rejected' ? 'border-red-400 bg-red-50' : 'border-yellow-400 bg-yellow-50'}`}>
                 <div className={`text-xl font-black uppercase tracking-widest ${data.status === 'approved' ? 'text-green-600' : data.status === 'rejected' ? 'text-red-600' : 'text-yellow-600'}`}>
                   {data.status === 'pending' ? 'MENUNGGU' : data.status === 'approved' ? 'DISETUJUI' : 'DITOLAK'}
                 </div>
             </div>
 
-            {/* INFO TANGGAL & JAM */}
             <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg mb-6">
                <div className="text-left">
                   <p className="text-[10px] text-gray-400 uppercase font-bold">Waktu Request</p>
@@ -153,7 +140,6 @@ const CouponModal = ({ data, onClose }) => {
 };
 
 // --- 4. Login Screen ---
-
 const LoginScreen = ({ onLoginSuccess }) => {
   const [nrp, setNrp] = useState('');
   const [password, setPassword] = useState('');
@@ -166,17 +152,12 @@ const LoginScreen = ({ onLoginSuccess }) => {
     setError('');
 
     try {
+      // Master Admin Bypass
       if (nrp.toUpperCase() === 'ADMIN' && password === 'GSI2025!') {
-        onLoginSuccess({
-           uid: 'master-admin',
-           nrp: 'ADMIN',
-           role: 'general_admin',
-           displayName: 'Master Admin'
-        });
+        onLoginSuccess({ uid: 'master-admin', nrp: 'ADMIN', role: 'general_admin', displayName: 'Master Admin' });
         return;
       }
-
-      // Login menggunakan getDocs (sekali panggil), tidak perlu realtime untuk login
+      // Normal Login
       const q = query(collection(db, 'users'), where('nrp', '==', nrp), where('password', '==', password));
       const querySnapshot = await getDocs(q);
 
@@ -219,12 +200,12 @@ const LoginScreen = ({ onLoginSuccess }) => {
             {loading ? 'Memuat...' : 'Masuk'} <ArrowRight size={20} />
           </button>
         </form>
-        <p className="text-center text-white/20 text-xs mt-8">Gunakan NRP & Password yang terdaftar.</p>
       </div>
     </MobileWrapper>
   );
 };
 
+// --- 5. Area Selection ---
 const AreaSelectionScreen = ({ user, onSelectArea, onLogout }) => {
   return (
     <MobileWrapper className="bg-slate-50">
@@ -239,11 +220,8 @@ const AreaSelectionScreen = ({ user, onSelectArea, onLogout }) => {
         
         <div className="grid gap-4">
             {YARDS.map((yard) => (
-                <button 
-                    key={yard}
-                    onClick={() => onSelectArea(yard)}
-                    className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between hover:border-blue-500 hover:shadow-md transition-all group"
-                >
+                <button key={yard} onClick={() => onSelectArea(yard)}
+                    className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between hover:border-blue-500 hover:shadow-md transition-all group">
                     <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
                             <Building2 size={24} />
@@ -259,52 +237,41 @@ const AreaSelectionScreen = ({ user, onSelectArea, onLogout }) => {
   );
 };
 
-// --- 5. Admin Dashboard (REALTIME & ROBUST) ---
+// --- 6. Admin Dashboard ---
 const AdminDashboard = ({ user, area, logout }) => {
   const [activeTab, setActiveTab] = useState('approvals'); 
   const [inventory, setInventory] = useState([]);
   const [pendingClaims, setPendingClaims] = useState([]);
   
-  // State Input Stock
+  // State Input
   const [newItemName, setNewItemName] = useState('');
   const [newItemStock, setNewItemStock] = useState('');
   const [editingItem, setEditingItem] = useState(null); 
-
-  // State Input User
+  // User Management
   const [usersList, setUsersList] = useState([]);
   const [newUserNrp, setNewUserNrp] = useState('');
   const [newUserPass, setNewUserPass] = useState('');
   const [newUserRole, setNewUserRole] = useState('user');
   const [newUserName, setNewUserName] = useState('');
 
-  // 1. Fetch Inventory (Realtime Listener)
   useEffect(() => {
     const q = query(collection(db, 'inventory'), where('area', '==', area), orderBy('createdAt', 'desc'));
-    // onSnapshot memastikan setiap perubahan di server langsung masuk ke sini
     return onSnapshot(q, (snap) => setInventory(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
   }, [area]);
 
-  // 2. Fetch Pending Claims (Realtime Listener)
   useEffect(() => {
     const q = query(collection(db, 'claims'), where('status', '==', 'pending'), where('area', '==', area), orderBy('timestamp', 'desc'));
     return onSnapshot(q, (snap) => setPendingClaims(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
   }, [area]);
 
-  // 3. Fetch Users (Realtime Listener)
   useEffect(() => {
-    const shouldFetchUsers = user.role === 'general_admin' || user.role === 'admin_area';
-    if(shouldFetchUsers) {
-        let q;
-        if (user.role === 'general_admin') {
-            q = query(collection(db, 'users'), orderBy('displayName'));
-        } else {
-            q = query(collection(db, 'users'), where('role', '==', 'user'));
-        }
+    if(user.role !== 'user') {
+        const q = user.role === 'general_admin' 
+            ? query(collection(db, 'users'), orderBy('displayName'))
+            : query(collection(db, 'users'), where('role', '==', 'user'));
         return onSnapshot(q, (snap) => setUsersList(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     }
   }, [user.role]);
-
-  // --- ACTIONS ---
 
   const handleSaveInventory = async (e) => {
     e.preventDefault();
@@ -325,31 +292,13 @@ const AdminDashboard = ({ user, area, logout }) => {
             });
         }
         setNewItemName(''); setNewItemStock('');
-        // Tidak perlu alert, data akan muncul otomatis karena onSnapshot
-    } catch(err) {
-        alert("Gagal simpan: " + err.message);
-    }
+    } catch(err) { alert("Error: " + err.message); }
   };
 
-  const startEdit = (item) => {
-      setEditingItem(item);
-      setNewItemName(item.name);
-      setNewItemStock(item.warehouseStock);
-      setActiveTab('inventory'); 
-      window.scrollTo(0,0); 
-  };
-
-  const handleDeleteInventory = async (id) => {
-      if(confirm("Hapus item ini?")) await deleteDoc(doc(db, 'inventory', id));
-  };
-
-  // --- LOGIC APPROVAL (REALTIME SAFE) ---
   const processClaim = async (claim, isApproved) => {
     try {
-        const adminNrp = user.nrp || user.email || 'Admin';
-
+        const adminNrp = user.nrp || 'Admin';
         if (!isApproved) {
-            // REJECT: Update langsung
             await updateDoc(doc(db, 'claims', claim.id), {
                 status: 'rejected',
                 processedAt: serverTimestamp(),
@@ -357,52 +306,29 @@ const AdminDashboard = ({ user, area, logout }) => {
             });
             return; 
         }
-
-        // APPROVE: Gunakan Transaction (Aman saat banyak request bersamaan)
         await runTransaction(db, async (t) => {
             const invRef = doc(db, 'inventory', claim.inventoryId);
             const invDoc = await t.get(invRef);
-            
-            if (!invDoc.exists()) {
-                throw new Error("Master barang sudah dihapus!");
-            }
-
+            if (!invDoc.exists()) throw new Error("Barang dihapus!");
             const currentStock = invDoc.data().warehouseStock || 0;
-            
-            if (currentStock <= 0) {
-                throw new Error("Stok barang habis! Tidak bisa approve.");
-            }
+            if (currentStock <= 0) throw new Error("Stok habis!");
 
-            // Kurangi Stok
             t.update(invRef, { warehouseStock: currentStock - 1 });
-            
-            // Update Klaim
-            const claimRef = doc(db, 'claims', claim.id);
-            t.update(claimRef, { 
+            t.update(doc(db, 'claims', claim.id), { 
                 status: 'approved', 
                 processedAt: serverTimestamp(), 
                 processedBy: adminNrp 
             });
         });
-    } catch (e) {
-        console.error("Proses Gagal: ", e);
-        alert("Gagal memproses: " + e.message);
-    }
+    } catch (e) { alert("Gagal: " + e.message); }
   };
 
   const handleAddUser = async (e) => {
       e.preventDefault();
-      if (user.role === 'admin_area' && newUserRole !== 'user') {
-          alert("Admin Area hanya boleh menambahkan Karyawan biasa.");
-          return;
-      }
       try {
           await addDoc(collection(db, 'users'), {
-              nrp: newUserNrp,
-              password: newUserPass,
-              displayName: newUserName,
-              role: newUserRole,
-              createdAt: serverTimestamp()
+              nrp: newUserNrp, password: newUserPass, displayName: newUserName,
+              role: newUserRole, createdAt: serverTimestamp()
           });
           setNewUserNrp(''); setNewUserPass(''); setNewUserName('');
       } catch (e) { alert("Gagal tambah user"); }
@@ -410,7 +336,6 @@ const AdminDashboard = ({ user, area, logout }) => {
 
   return (
     <MobileWrapper>
-      {/* Header */}
       <div className="bg-indigo-900 text-white p-6 pt-10 rounded-b-[2.5rem] shadow-lg flex-shrink-0">
         <div className="flex justify-between items-center mb-4">
           <div>
@@ -424,15 +349,14 @@ const AdminDashboard = ({ user, area, logout }) => {
         </div>
         
         <div className="grid grid-cols-3 gap-2">
-          <button onClick={() => {setActiveTab('approvals'); setEditingItem(null);}} className={`p-3 rounded-xl flex flex-col items-center gap-1 ${activeTab === 'approvals' ? 'bg-white text-indigo-900' : 'bg-white/10'}`}>
+          <button onClick={() => setActiveTab('approvals')} className={`p-3 rounded-xl flex flex-col items-center gap-1 ${activeTab === 'approvals' ? 'bg-white text-indigo-900' : 'bg-white/10'}`}>
             <CheckCircle size={20} /> <span className="text-[10px] font-bold">Approval</span>
           </button>
           <button onClick={() => setActiveTab('inventory')} className={`p-3 rounded-xl flex flex-col items-center gap-1 ${activeTab === 'inventory' ? 'bg-white text-indigo-900' : 'bg-white/10'}`}>
             <Package size={20} /> <span className="text-[10px] font-bold">Stok</span>
           </button>
-          
           {(user.role === 'general_admin' || user.role === 'admin_area') && (
-             <button onClick={() => {setActiveTab('users'); setEditingItem(null);}} className={`p-3 rounded-xl flex flex-col items-center gap-1 ${activeTab === 'users' ? 'bg-white text-indigo-900' : 'bg-white/10'}`}>
+             <button onClick={() => setActiveTab('users')} className={`p-3 rounded-xl flex flex-col items-center gap-1 ${activeTab === 'users' ? 'bg-white text-indigo-900' : 'bg-white/10'}`}>
                 <Users size={20} /> <span className="text-[10px] font-bold">Users</span>
              </button>
           )}
@@ -440,64 +364,47 @@ const AdminDashboard = ({ user, area, logout }) => {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 pb-20 bg-slate-50">
-        
-        {/* --- TAB APPROVALS --- */}
         {activeTab === 'approvals' && (
           <div className="space-y-3">
             <h3 className="font-bold text-slate-700">Klaim Menunggu ({pendingClaims.length})</h3>
-            {pendingClaims.length === 0 ? (
-               <div className="text-center py-10 text-gray-400">Tidak ada antrian di {area}.</div>
-            ) : pendingClaims.map(claim => (
+            {pendingClaims.length === 0 && <div className="text-center py-10 text-gray-400">Tidak ada antrian.</div>}
+            {pendingClaims.map(claim => (
                 <div key={claim.id} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
                     <div className="flex justify-between items-start">
                         <div>
                             <div className="font-bold text-slate-800 text-lg">{claim.userName}</div>
                             <div className="text-xs text-gray-500 mb-2">NRP: {claim.userNrp}</div>
-                            
                             <div className="bg-blue-50 px-3 py-1 rounded-lg inline-block border border-blue-100">
-                                <span className="text-sm text-blue-700 font-bold flex items-center gap-1">
-                                    <Coffee size={14}/> {claim.drinkName}
-                                </span>
+                                <span className="text-sm text-blue-700 font-bold flex items-center gap-1"><Coffee size={14}/> {claim.drinkName}</span>
                             </div>
                         </div>
-                        <div className="text-right">
-                             <div className="text-[10px] text-gray-400 font-bold bg-gray-100 px-2 py-1 rounded">
-                                {formatDateTime(claim.timestamp).split(',')[1]}
-                             </div>
+                        <div className="text-[10px] text-gray-400 font-bold bg-gray-100 px-2 py-1 rounded">
+                           {formatDateTime(claim.timestamp).split(',')[1]}
                         </div>
                     </div>
                     <div className="flex gap-2 mt-4">
-                        <button onClick={() => processClaim(claim, true)} className="flex-1 bg-emerald-500 text-white py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-transform hover:bg-emerald-600">
-                            Terima
-                        </button>
-                        <button onClick={() => processClaim(claim, false)} className="flex-1 bg-white text-red-500 py-3 rounded-xl font-bold text-sm border border-red-100 shadow-sm active:scale-95 transition-transform hover:bg-red-50">
-                            Tolak
-                        </button>
+                        <button onClick={() => processClaim(claim, true)} className="flex-1 bg-emerald-500 text-white py-3 rounded-xl font-bold text-sm shadow-md active:scale-95">Terima</button>
+                        <button onClick={() => processClaim(claim, false)} className="flex-1 bg-white text-red-500 py-3 rounded-xl font-bold text-sm border border-red-100 shadow-sm active:scale-95">Tolak</button>
                     </div>
                 </div>
             ))}
           </div>
         )}
 
-        {/* --- TAB INVENTORY --- */}
         {activeTab === 'inventory' && (
           <div className="space-y-4">
              <div className="bg-white p-4 rounded-2xl shadow-sm border border-indigo-100">
                 <h3 className="font-bold text-sm mb-3 text-slate-700">{editingItem ? 'Edit Stok' : 'Tambah Stok Baru'}</h3>
                 <form onSubmit={handleSaveInventory} className="space-y-2">
-                    <input required placeholder="Nama Minuman" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" 
+                    <input required placeholder="Nama Minuman" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" 
                         value={newItemName} onChange={e=>setNewItemName(e.target.value)} />
                     <div className="flex gap-2">
-                        <input required type="number" placeholder="Jumlah" className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" 
+                        <input required type="number" placeholder="Jumlah" className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" 
                             value={newItemStock} onChange={e=>setNewItemStock(e.target.value)} />
-                        <button type="submit" className={`px-4 py-2 rounded-lg text-white font-bold text-sm ${editingItem ? 'bg-orange-500' : 'bg-indigo-600'}`}>
-                            {editingItem ? 'Update' : 'Simpan'}
-                        </button>
-                        {editingItem && <button type="button" onClick={()=>{setEditingItem(null); setNewItemName(''); setNewItemStock('');}} className="px-3 bg-gray-200 rounded-lg text-xs font-bold text-gray-600">Batal</button>}
+                        <button type="submit" className={`px-4 py-2 rounded-lg text-white font-bold text-sm ${editingItem ? 'bg-orange-500' : 'bg-indigo-600'}`}>{editingItem ? 'Update' : 'Simpan'}</button>
                     </div>
                 </form>
              </div>
-
              <div className="space-y-2">
                 {inventory.map(item => (
                     <div key={item.id} className="bg-white p-3 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center">
@@ -509,8 +416,8 @@ const AdminDashboard = ({ user, area, logout }) => {
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            <button onClick={()=>startEdit(item)} className="p-2 bg-orange-50 text-orange-500 rounded-lg"><Edit size={14}/></button>
-                            <button onClick={()=>handleDeleteInventory(item.id)} className="p-2 bg-red-50 text-red-500 rounded-lg"><Trash2 size={14}/></button>
+                            <button onClick={()=>{setEditingItem(item); setNewItemName(item.name); setNewItemStock(item.warehouseStock); window.scrollTo(0,0);}} className="p-2 bg-orange-50 text-orange-500 rounded-lg"><Edit size={14}/></button>
+                            <button onClick={()=>confirm("Hapus?") && deleteDoc(doc(db, 'inventory', item.id))} className="p-2 bg-red-50 text-red-500 rounded-lg"><Trash2 size={14}/></button>
                         </div>
                     </div>
                 ))}
@@ -518,81 +425,72 @@ const AdminDashboard = ({ user, area, logout }) => {
           </div>
         )}
 
-        {/* --- TAB USER MANAGEMENT --- */}
-        {activeTab === 'users' && (user.role === 'general_admin' || user.role === 'admin_area') && (
+        {activeTab === 'users' && (
              <div className="space-y-4">
                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-purple-100">
                     <h3 className="font-bold text-sm mb-3 text-slate-700 flex items-center gap-2"><UserPlus size={16}/> Tambah User</h3>
                     <form onSubmit={handleAddUser} className="space-y-2">
-                        <input required placeholder="Nama Lengkap" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" 
-                            value={newUserName} onChange={e=>setNewUserName(e.target.value)} />
-                        
-                        <input required type="text" placeholder="NRP Karyawan" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" 
-                            value={newUserNrp} onChange={e=>setNewUserNrp(e.target.value)} />
-                        
-                        <input required type="text" placeholder="Password" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" 
-                            value={newUserPass} onChange={e=>setNewUserPass(e.target.value)} />
-                        
-                        <select 
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900"
-                            value={newUserRole} 
-                            onChange={e=>setNewUserRole(e.target.value)}
-                            disabled={user.role === 'admin_area'} 
-                        >
+                        <input required placeholder="Nama Lengkap" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" value={newUserName} onChange={e=>setNewUserName(e.target.value)} />
+                        <input required type="text" placeholder="NRP" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" value={newUserNrp} onChange={e=>setNewUserNrp(e.target.value)} />
+                        <input required type="text" placeholder="Password" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" value={newUserPass} onChange={e=>setNewUserPass(e.target.value)} />
+                        <select className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" value={newUserRole} onChange={e=>setNewUserRole(e.target.value)} disabled={user.role === 'admin_area'}>
                             <option value="user">User (Karyawan)</option>
-                            {user.role === 'general_admin' && (
-                                <>
-                                    <option value="admin_area">Admin Area</option>
-                                    <option value="general_admin">General Admin</option>
-                                </>
-                            )}
+                            {user.role === 'general_admin' && <><option value="admin_area">Admin Area</option><option value="general_admin">General Admin</option></>}
                         </select>
-                        <button type="submit" className="w-full bg-purple-600 text-white py-2 rounded-lg font-bold text-sm">Tambah User</button>
+                        <button type="submit" className="w-full bg-purple-600 text-white py-2 rounded-lg font-bold text-sm">Simpan</button>
                     </form>
                  </div>
-                 
                  <div className="space-y-2">
-                     <h3 className="font-bold text-xs text-gray-500 uppercase px-2">
-                        {user.role === 'general_admin' ? 'Semua User' : 'Daftar Karyawan'}
-                     </h3>
-                     {usersList.map(u => (
-                         <div key={u.id} className="bg-white p-3 rounded-xl border border-slate-100 flex justify-between items-center">
-                             <div>
-                                 <div className="font-bold text-sm text-slate-700">{u.displayName}</div>
-                                 <div className="text-[10px] text-gray-400">NRP: {u.nrp || '-'}</div>
-                             </div>
-                             <span className="text-[10px] font-bold bg-gray-100 px-2 py-1 rounded text-gray-600">{u.role}</span>
-                         </div>
-                     ))}
+                      {usersList.map(u => (
+                          <div key={u.id} className="bg-white p-3 rounded-xl border border-slate-100 flex justify-between items-center">
+                              <div><div className="font-bold text-sm text-slate-700">{u.displayName}</div><div className="text-[10px] text-gray-400">{u.nrp}</div></div>
+                              <span className="text-[10px] font-bold bg-gray-100 px-2 py-1 rounded text-gray-600">{u.role}</span>
+                          </div>
+                      ))}
                  </div>
              </div>
         )}
-
       </div>
     </MobileWrapper>
   );
 };
 
-// --- 6. Employee Dashboard (REALTIME & ROBUST) ---
+// --- 7. Employee Dashboard (PEMBAHARUAN BESAR) ---
 const EmployeeDashboard = ({ user, area, logout }) => {
+  const [activeTab, setActiveTab] = useState('dashboard'); // dashboard, history, profile
   const [menuItems, setMenuItems] = useState([]);
   const [todaysClaim, setTodaysClaim] = useState(null);
   const [showCoupon, setShowCoupon] = useState(false);
-  
-  // Realtime Menu
+  const [historyList, setHistoryList] = useState([]); // State untuk riwayat
+
+  // Fetch Menu
   useEffect(() => {
     const q = query(collection(db, 'inventory'), where('area', '==', area), orderBy('name'));
     return onSnapshot(q, (snap) => setMenuItems(snap.docs.map(d => ({id: d.id, ...d.data()}))));
   }, [area]);
 
-  // Realtime Status Klaim
+  // Fetch Today's Claim (Cek status pending/approved hari ini)
   useEffect(() => {
-    const q = query(collection(db, 'claims'), where('userId', '==', user.uid), where('date', '==', getTodayString()), where('status', '!=', 'rejected'));
+    // Cari klaim hari ini yang TIDAK ditolak
+    const q = query(
+        collection(db, 'claims'), 
+        where('userId', '==', user.uid), 
+        where('date', '==', getTodayString()),
+        where('status', '!=', 'rejected') 
+    );
     return onSnapshot(q, (snap) => {
       if (!snap.empty) setTodaysClaim({ id: snap.docs[0].id, ...snap.docs[0].data() });
       else setTodaysClaim(null);
     });
   }, [user]);
+
+  // Fetch Full History (Saat Tab History aktif)
+  useEffect(() => {
+      if (activeTab === 'history') {
+          const q = query(collection(db, 'claims'), where('userId', '==', user.uid), orderBy('timestamp', 'desc'));
+          return onSnapshot(q, (snap) => setHistoryList(snap.docs.map(d => ({id: d.id, ...d.data()}))));
+      }
+  }, [activeTab, user]);
 
   const handleOrder = async (item) => {
     if (todaysClaim) return;
@@ -606,38 +504,30 @@ const EmployeeDashboard = ({ user, area, logout }) => {
             inventoryId: item.id,
             drinkName: item.name,
             date: getTodayString(),
-            status: 'pending',
+            status: 'pending', // Awal klaim statusnya PENDING
             location: area,
             area: area, 
             timestamp: serverTimestamp()
         };
-        const docRef = await addDoc(collection(db, 'claims'), claimData);
-        // Tidak perlu setTodaysClaim manual karena onSnapshot akan mendeteksi perubahan ini
+        await addDoc(collection(db, 'claims'), claimData);
+        // User tidak perlu mengurangi stok di sini. 
+        // Admin approval yang akan mengurangi stok via Transaction.
+        // Tampilan stok di user akan update otomatis karena onSnapshot menuItems.
         setShowCoupon(true);
     } catch (e) { alert("Gagal klaim: " + e.message); }
   };
 
-  return (
-    <MobileWrapper className="bg-slate-50">
-      {showCoupon && <CouponModal data={todaysClaim} onClose={() => setShowCoupon(false)} />}
-      
-      <div className="bg-white p-6 pb-4 rounded-b-3xl shadow-sm sticky top-0 z-10">
-         <div className="flex justify-between items-start">
-             <div>
-                 <p className="text-xs text-slate-400 font-bold mb-1"><MapPin size={10} className="inline mr-1"/> {area}</p>
-                 <h2 className="text-lg font-bold text-slate-800">Halo, {user.displayName}</h2>
-             </div>
-             <button onClick={logout} className="p-2 bg-slate-100 rounded-full"><LogOut size={16}/></button>
-         </div>
-      </div>
+  // --- SUB-COMPONENTS VIEW ---
 
-      <div className="p-6 overflow-y-auto pb-24">
+  const DashboardView = () => (
+    <div className="p-6 pb-28">
+        {/* Banner Status */}
          <div className={`p-5 rounded-3xl text-white shadow-xl mb-6 relative overflow-hidden ${todaysClaim ? 'bg-slate-800' : 'bg-gradient-to-r from-blue-600 to-indigo-600'}`}>
              <div className="relative z-10">
                  <p className="text-xs opacity-80 mb-1">Status Hari Ini</p>
                  <h3 className="text-2xl font-bold flex items-center gap-2">
-                     {todaysClaim ? 'Sudah Klaim' : 'Belum Klaim'}
-                     {todaysClaim && <CheckCircle size={20} className="text-green-400"/>}
+                     {todaysClaim ? (todaysClaim.status === 'pending' ? 'Menunggu Approval' : 'Siap Diambil') : 'Belum Klaim'}
+                     {todaysClaim && todaysClaim.status === 'approved' && <CheckCircle size={20} className="text-green-400"/>}
                  </h3>
                  {todaysClaim && (
                      <button onClick={()=>setShowCoupon(true)} className="mt-3 bg-white/20 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-white/30 transition-all">
@@ -650,7 +540,7 @@ const EmployeeDashboard = ({ user, area, logout }) => {
 
          <h3 className="font-bold text-slate-700 mb-4">Menu Tersedia</h3>
          <div className="space-y-3">
-             {menuItems.length === 0 && <p className="text-gray-400 text-center text-sm">Tidak ada item di area ini.</p>}
+             {menuItems.length === 0 && <p className="text-gray-400 text-center text-sm">Menu belum tersedia.</p>}
              {menuItems.map(item => (
                  <div key={item.id} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
                      <div className="flex items-center gap-4">
@@ -659,27 +549,135 @@ const EmployeeDashboard = ({ user, area, logout }) => {
                          </div>
                          <div>
                              <div className="font-bold text-slate-800">{item.name}</div>
-                             <div className={`text-xs font-bold px-2 py-0.5 rounded w-fit mt-1 ${item.warehouseStock > 0 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                                 Stok: {item.warehouseStock}
+                             {/* Badge Stok */}
+                             <div className={`text-xs font-bold px-2 py-0.5 rounded-md w-fit mt-1 flex items-center gap-1 ${item.warehouseStock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                 <Package size={10} /> Stok: {item.warehouseStock}
                              </div>
                          </div>
                      </div>
                      <button 
                        disabled={todaysClaim || item.warehouseStock <= 0}
                        onClick={()=>handleOrder(item)}
-                       className={`px-4 py-2 rounded-xl font-bold text-xs ${todaysClaim || item.warehouseStock <= 0 ? 'bg-gray-100 text-gray-400' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                       className={`px-4 py-2 rounded-xl font-bold text-xs shadow-sm transition-all active:scale-95 ${todaysClaim || item.warehouseStock <= 0 ? 'bg-gray-100 text-gray-400' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
                      >
-                         {todaysClaim ? 'Besok' : item.warehouseStock <= 0 ? 'Habis' : 'Klaim'}
+                         {todaysClaim ? 'Selesai' : item.warehouseStock <= 0 ? 'Habis' : 'Klaim'}
                      </button>
                  </div>
              ))}
          </div>
+    </div>
+  );
+
+  const HistoryView = () => (
+      <div className="p-6 pb-28">
+          <h3 className="font-bold text-slate-700 mb-4 text-xl">Riwayat Klaim</h3>
+          <div className="space-y-3">
+              {historyList.length === 0 && <p className="text-gray-400 text-center mt-10">Belum ada riwayat.</p>}
+              {historyList.map(item => (
+                  <div key={item.id} onClick={() => {if(item.date === getTodayString()) setShowCoupon(true)}} className={`bg-white p-4 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden ${item.date === getTodayString() ? 'cursor-pointer ring-1 ring-blue-400' : ''}`}>
+                      <div className="flex justify-between items-start mb-2">
+                          <span className="font-bold text-slate-800">{item.drinkName}</span>
+                          <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-1 rounded-full">{item.date}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                          <div className={`text-xs font-bold px-2 py-1 rounded flex items-center gap-1 
+                              ${item.status === 'approved' ? 'bg-green-100 text-green-600' : 
+                                item.status === 'rejected' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600'}`}>
+                              {item.status === 'approved' ? <CheckCircle size={12}/> : item.status === 'rejected' ? <WifiOff size={12}/> : <Clock size={12}/>}
+                              {item.status === 'approved' ? 'Disetujui' : item.status === 'rejected' ? 'Ditolak' : 'Menunggu'}
+                          </div>
+                          {item.date === getTodayString() && <span className="text-[10px] text-blue-500 font-bold">Hari Ini</span>}
+                      </div>
+                  </div>
+              ))}
+          </div>
+      </div>
+  );
+
+  const ProfileView = () => (
+      <div className="p-6 pb-28">
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 text-center mb-6">
+              <div className="w-20 h-20 bg-slate-100 rounded-full mx-auto mb-4 flex items-center justify-center text-slate-400">
+                  <User size={40} />
+              </div>
+              <h2 className="text-xl font-bold text-slate-800">{user.displayName}</h2>
+              <p className="text-slate-500 text-sm mb-4">{user.nrp || 'No NRP'}</p>
+              <div className="bg-blue-50 text-blue-700 px-4 py-2 rounded-xl text-sm font-bold inline-flex items-center gap-2">
+                  <MapPin size={14} /> {area}
+              </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+              <button onClick={logout} className="w-full p-4 text-left flex items-center justify-between hover:bg-slate-50 text-red-500 font-bold">
+                  <span className="flex items-center gap-3"><LogOut size={18}/> Keluar Akun</span>
+                  <ArrowRight size={16} className="text-red-300"/>
+              </button>
+          </div>
+          <p className="text-center text-gray-300 text-xs mt-8">Versi Aplikasi 2.1.0</p>
+      </div>
+  );
+
+  return (
+    <MobileWrapper className="bg-slate-50">
+      {showCoupon && <CouponModal data={todaysClaim} onClose={() => setShowCoupon(false)} />}
+      
+      {/* HEADER FIXED */}
+      <div className="bg-white px-6 py-4 rounded-b-3xl shadow-sm sticky top-0 z-20 flex justify-between items-center">
+         <div>
+             <h2 className="text-lg font-bold text-slate-800">
+                {activeTab === 'dashboard' ? 'Beranda' : activeTab === 'history' ? 'Riwayat' : 'Profil Saya'}
+             </h2>
+             <p className="text-xs text-slate-400 flex items-center gap-1"><MapPin size={10}/> {area}</p>
+         </div>
+         <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-xs">
+             {user.displayName.charAt(0)}
+         </div>
+      </div>
+
+      {/* CONTENT SCROLLABLE */}
+      <div className="flex-1 overflow-y-auto h-full">
+          {activeTab === 'dashboard' && <DashboardView />}
+          {activeTab === 'history' && <HistoryView />}
+          {activeTab === 'profile' && <ProfileView />}
+      </div>
+
+      {/* BOTTOM NAVIGATION */}
+      <div className="absolute bottom-0 w-full bg-white border-t border-slate-100 py-3 px-6 pb-6 rounded-t-2xl shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-30 flex justify-between items-center">
+          <button 
+            onClick={() => setActiveTab('dashboard')} 
+            className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'dashboard' ? 'text-blue-600 scale-105' : 'text-slate-400'}`}
+          >
+              <div className={`p-1.5 rounded-xl ${activeTab === 'dashboard' ? 'bg-blue-50' : 'bg-transparent'}`}>
+                <LayoutDashboard size={22} strokeWidth={activeTab === 'dashboard' ? 2.5 : 2} />
+              </div>
+              <span className="text-[10px] font-bold">Dashboard</span>
+          </button>
+          
+          <button 
+            onClick={() => setActiveTab('history')} 
+            className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'history' ? 'text-blue-600 scale-105' : 'text-slate-400'}`}
+          >
+              <div className={`p-1.5 rounded-xl ${activeTab === 'history' ? 'bg-blue-50' : 'bg-transparent'}`}>
+                <History size={22} strokeWidth={activeTab === 'history' ? 2.5 : 2} />
+              </div>
+              <span className="text-[10px] font-bold">Riwayat</span>
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('profile')} 
+            className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'profile' ? 'text-blue-600 scale-105' : 'text-slate-400'}`}
+          >
+              <div className={`p-1.5 rounded-xl ${activeTab === 'profile' ? 'bg-blue-50' : 'bg-transparent'}`}>
+                <UserCircle size={22} strokeWidth={activeTab === 'profile' ? 2.5 : 2} />
+              </div>
+              <span className="text-[10px] font-bold">Profil</span>
+          </button>
       </div>
     </MobileWrapper>
   );
 };
 
-// --- 7. Main App Orchestrator ---
+// --- 8. Main App ---
 const App = () => {
   const [user, setUser] = useState(null);
   const [selectedArea, setSelectedArea] = useState(null);
@@ -689,15 +687,11 @@ const App = () => {
     setSelectedArea(null);
   };
 
-  if (!user) {
-    return <LoginScreen onLoginSuccess={setUser} />;
-  }
-
-  if (!selectedArea) {
-    return <AreaSelectionScreen user={user} onSelectArea={setSelectedArea} onLogout={handleLogout} />;
-  }
-
-  if (user.role === 'admin_area' || user.role === 'general_admin') {
+  if (!user) return <LoginScreen onLoginSuccess={setUser} />;
+  if (!selectedArea) return <AreaSelectionScreen user={user} onSelectArea={setSelectedArea} onLogout={handleLogout} />;
+  
+  // Logic Role
+  if (['admin_area', 'general_admin'].includes(user.role)) {
       return <AdminDashboard user={user} area={selectedArea} logout={handleLogout} />;
   }
 

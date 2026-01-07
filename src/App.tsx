@@ -115,17 +115,13 @@ const ConnectionStatus = () => {
     );
 };
 
-// --- KEY FIX: Mobile Wrapper & Global Style ---
 const MobileWrapper = ({ children, className = "" }) => (
-  // Container Luar: Fixed inset-0 mengunci layar agar tidak bisa scroll body browser
   <div className="fixed inset-0 bg-gray-900 flex justify-center items-center font-sans overflow-hidden touch-none">
-    {/* Style tag untuk mematikan overscroll bounce pada iOS */}
     <style>{`
       body { overflow: hidden; position: fixed; width: 100%; height: 100%; }
       * { -webkit-tap-highlight-color: transparent; }
     `}</style>
     
-    {/* Container HP: Pada mobile width 100%, pada desktop max-w-md */}
     <div className={`w-full h-full md:h-[95dvh] md:max-w-md md:rounded-[2.5rem] bg-gray-50 flex flex-col relative overflow-hidden shadow-2xl ${className}`}>
       <ConnectionStatus />
       {children}
@@ -175,7 +171,7 @@ const CouponModal = ({ data, onClose }) => {
   );
 };
 
-// --- 4. Login Screen (UPDATED LOGO) ---
+// --- 4. Login Screen ---
 const LoginScreen = ({ onLoginSuccess }) => {
   const [nrp, setNrp] = useState('');
   const [password, setPassword] = useState('');
@@ -203,8 +199,6 @@ const LoginScreen = ({ onLoginSuccess }) => {
   return (
     <MobileWrapper className="bg-gradient-to-br from-slate-900 to-indigo-950">
       <div className="flex-1 flex flex-col justify-center px-8 relative z-10 w-full overflow-y-auto">
-        
-        {/* LOGO SECTION - Menggantikan Icon Kopi dan Judul Text */}
         <div className="flex justify-center mb-6">
             <img 
                 src="https://github.com/chairulbreaks06-NR/ClaimSofdrinkYard/blob/main/logo%20Claim%20Sofdrink%20(1).png?raw=true" 
@@ -212,9 +206,7 @@ const LoginScreen = ({ onLoginSuccess }) => {
                 className="w-auto h-40 object-contain drop-shadow-2xl animate-in zoom-in duration-500"
             />
         </div>
-        
         <p className="text-blue-200 mb-8 text-center text-sm opacity-80">Portal Layanan Karyawan</p>
-        
         <form onSubmit={handleLogin} className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 w-full">
           <div className="relative">
             <User className="absolute left-4 top-3.5 text-gray-400" size={20} />
@@ -262,7 +254,7 @@ const AreaSelectionScreen = ({ user, onSelectArea, onLogout }) => {
   );
 };
 
-// --- 6. Admin Dashboard ---
+// --- 6. Admin Dashboard (UPDATED) ---
 const AdminDashboard = ({ user, area, logout }) => {
   const [activeTab, setActiveTab] = useState('history'); 
   const [successMsg, setSuccessMsg] = useState(null);
@@ -275,14 +267,30 @@ const AdminDashboard = ({ user, area, logout }) => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
+  // State Inventory
   const [newItemName, setNewItemName] = useState('');
   const [newItemStock, setNewItemStock] = useState('');
   const [newItemDay, setNewItemDay] = useState('Setiap Hari');
   const [editingItem, setEditingItem] = useState(null); 
+
+  // State User Management
   const [newUserNrp, setNewUserNrp] = useState('');
   const [newUserPass, setNewUserPass] = useState('');
-  const [newUserRole, setNewUserRole] = useState('user');
   const [newUserName, setNewUserName] = useState('');
+  
+  // Logic Role Baru
+  const [accountType, setAccountType] = useState('user'); // 'user' atau 'admin'
+  const [newUserRole, setNewUserRole] = useState('user'); // 'user', 'admin_area', 'general_admin'
+
+  // Update role otomatis saat accountType berubah
+  useEffect(() => {
+    if (accountType === 'user') {
+        setNewUserRole('user');
+    } else {
+        // Default ke admin area jika baru pindah ke admin
+        if (newUserRole === 'user') setNewUserRole('admin_area');
+    }
+  }, [accountType]);
 
   useEffect(() => {
     const q = query(collection(db, 'inventory'), where('area', '==', area));
@@ -346,8 +354,16 @@ const AdminDashboard = ({ user, area, logout }) => {
   const handleAddUser = async (e) => {
       e.preventDefault();
       try {
-          await addDoc(collection(db, 'users'), { nrp: newUserNrp, password: newUserPass, displayName: newUserName, role: newUserRole, createdAt: serverTimestamp() });
-          setNewUserNrp(''); setNewUserPass(''); setNewUserName(''); showSuccess("User Ditambahkan");
+          await addDoc(collection(db, 'users'), { 
+            nrp: newUserNrp, 
+            password: newUserPass, 
+            displayName: newUserName, 
+            role: newUserRole, 
+            createdAt: serverTimestamp() 
+          });
+          setNewUserNrp(''); setNewUserPass(''); setNewUserName(''); 
+          setAccountType('user'); // Reset form
+          showSuccess("User Ditambahkan");
       } catch (e) { alert("Gagal tambah user"); }
   };
 
@@ -377,7 +393,7 @@ const AdminDashboard = ({ user, area, logout }) => {
       });
 
       return (
-        <div className="p-6 pb-28 w-full">
+        <div className="p-6 pb-28 w-full animate-in fade-in slide-in-from-bottom-4">
             <h3 className="font-bold text-slate-700 text-xl mb-4 flex items-center gap-2"><History size={20}/> Riwayat Klaim</h3>
             
             <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-4 space-y-3">
@@ -423,7 +439,7 @@ const AdminDashboard = ({ user, area, logout }) => {
   };
 
   const renderStats = () => (
-      <div className="p-6 pb-28 w-full">
+      <div className="p-6 pb-28 w-full animate-in fade-in slide-in-from-bottom-4">
           <h3 className="font-bold text-slate-700 text-xl mb-6 flex items-center gap-2"><BarChart3 size={20}/> Statistik Area</h3>
           <div className="grid grid-cols-2 gap-4 mb-6">
               <div className="bg-indigo-600 p-5 rounded-2xl text-white shadow-lg shadow-indigo-200">
@@ -453,7 +469,7 @@ const AdminDashboard = ({ user, area, logout }) => {
   );
 
   const renderManage = () => (
-      <div className="p-6 pb-28 space-y-8 w-full">
+      <div className="p-6 pb-28 space-y-8 w-full animate-in fade-in slide-in-from-bottom-4">
           <div>
             <h3 className="font-bold text-slate-700 text-lg mb-3 flex items-center gap-2"><Package size={18}/> Kelola Stok</h3>
             <div className="bg-white p-4 rounded-2xl shadow-sm border border-indigo-100 mb-4">
@@ -494,20 +510,54 @@ const AdminDashboard = ({ user, area, logout }) => {
               <div>
                  <h3 className="font-bold text-slate-700 text-lg mb-3 flex items-center gap-2"><Users size={18}/> Kelola User</h3>
                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-purple-100 mb-4">
-                    <form onSubmit={handleAddUser} className="space-y-2">
-                        <input required placeholder="Nama" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" value={newUserName} onChange={e=>setNewUserName(e.target.value)} />
+                    <form onSubmit={handleAddUser} className="space-y-3">
+                        <input required placeholder="Nama Lengkap" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" value={newUserName} onChange={e=>setNewUserName(e.target.value)} />
+                        
                         <div className="flex gap-2">
                             <input required type="text" placeholder="NRP" className="w-1/2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" value={newUserNrp} onChange={e=>setNewUserNrp(e.target.value)} />
-                            <input required type="text" placeholder="Pass" className="w-1/2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" value={newUserPass} onChange={e=>setNewUserPass(e.target.value)} />
+                            <input required type="text" placeholder="Password" className="w-1/2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" value={newUserPass} onChange={e=>setNewUserPass(e.target.value)} />
                         </div>
-                        <button type="submit" className="w-full bg-purple-600 text-white py-2 rounded-lg font-bold text-sm">Tambah User</button>
+                        
+                        {/* UPDATE: Dropdown Pilihan Role */}
+                        <div className="grid grid-cols-2 gap-2">
+                            <div>
+                                <label className="text-[10px] font-bold text-gray-400 ml-1">Tipe Akun</label>
+                                <select 
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-xs font-bold text-slate-700"
+                                    value={accountType} 
+                                    onChange={(e) => setAccountType(e.target.value)}
+                                >
+                                    <option value="user">User Karyawan</option>
+                                    <option value="admin">Administrator</option>
+                                </select>
+                            </div>
+
+                            {/* Tampilkan Pilihan Otoritas Hanya Jika Tipe Akun = Admin */}
+                            {accountType === 'admin' && (
+                                <div className="animate-in fade-in zoom-in-95">
+                                    <label className="text-[10px] font-bold text-gray-400 ml-1">Otoritas</label>
+                                    <select 
+                                        className="w-full bg-purple-50 border border-purple-200 rounded-lg px-2 py-2 text-xs font-bold text-purple-700"
+                                        value={newUserRole} 
+                                        onChange={(e) => setNewUserRole(e.target.value)}
+                                    >
+                                        <option value="admin_area">Admin Area</option>
+                                        <option value="general_admin">Admin General</option>
+                                    </select>
+                                </div>
+                            )}
+                        </div>
+
+                        <button type="submit" className="w-full bg-purple-600 text-white py-2 rounded-lg font-bold text-sm mt-2 hover:bg-purple-700 transition-colors">Tambah User</button>
                     </form>
                  </div>
                  <div className="space-y-2 max-h-60 overflow-y-auto">
                       {usersList.map(u => (
                           <div key={u.id} className="bg-white p-3 rounded-xl border border-slate-100 flex justify-between items-center">
                               <div><div className="font-bold text-sm text-slate-700">{u.displayName}</div><div className="text-[10px] text-gray-400">{u.nrp}</div></div>
-                              <span className="text-[10px] font-bold bg-gray-100 px-2 py-1 rounded text-gray-600 uppercase">{u.role.replace('_', ' ')}</span>
+                              <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase ${u.role === 'user' ? 'bg-gray-100 text-gray-600' : 'bg-purple-100 text-purple-600'}`}>
+                                {u.role === 'general_admin' ? 'General' : u.role === 'admin_area' ? 'Admin Area' : 'User'}
+                              </span>
                           </div>
                       ))}
                  </div>
@@ -516,37 +566,59 @@ const AdminDashboard = ({ user, area, logout }) => {
       </div>
   );
 
+  // --- MENU BUTTON HELPER ---
+  const MenuButton = ({ id, label, icon: Icon }) => (
+      <button 
+        onClick={() => setActiveTab(id)} 
+        className={`flex-1 flex flex-col items-center justify-center py-2.5 rounded-lg transition-all duration-300 ${
+            activeTab === id 
+            ? 'bg-white text-indigo-900 shadow-md transform scale-100' 
+            : 'text-indigo-200 hover:bg-white/10 hover:text-white'
+        }`}
+      >
+        <Icon size={18} strokeWidth={activeTab === id ? 2.5 : 2} className="mb-1"/>
+        <span className="text-[10px] font-bold tracking-wide">{label}</span>
+      </button>
+  );
+
   return (
     <MobileWrapper className="bg-slate-50">
       <SuccessModal message={successMsg} onClose={() => setSuccessMsg(null)} />
-      {/* HEADER FIXED */}
-      <div className="bg-indigo-900 px-6 py-6 rounded-b-[2rem] shadow-lg flex justify-between items-center text-white w-full shrink-0 z-20">
-         <div><h2 className="text-lg font-bold">Admin Panel</h2><p className="text-xs text-indigo-300 flex items-center gap-1"><MapPin size={10}/> {area}</p></div>
-         <button onClick={logout} className="bg-white/20 p-2 rounded-full hover:bg-white/30"><LogOut size={16}/></button>
+      
+      {/* HEADER FIXED + NAVIGASI BARU DI ATAS */}
+      <div className="bg-indigo-900 pt-6 pb-4 px-6 rounded-b-[2rem] shadow-xl flex flex-col w-full shrink-0 z-20 relative overflow-hidden">
+         {/* Background Decoration */}
+         <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+         <div className="absolute bottom-0 left-0 w-24 h-24 bg-indigo-500/20 rounded-full -ml-5 -mb-5 blur-xl"></div>
+
+         <div className="flex justify-between items-start mb-4 relative z-10">
+             <div>
+                <h2 className="text-xl font-black text-white tracking-tight">Admin Panel</h2>
+                <p className="text-xs text-indigo-300 flex items-center gap-1 font-medium mt-0.5">
+                    <MapPin size={10} className="text-orange-400"/> {area}
+                </p>
+             </div>
+             <button onClick={logout} className="bg-white/10 backdrop-blur-sm p-2 rounded-full hover:bg-white/20 text-white transition-colors border border-white/5">
+                <LogOut size={16}/>
+             </button>
+         </div>
+
+         {/* MENU NAVIGASI (Segmented Control Style) */}
+         <div className="bg-indigo-950/50 p-1.5 rounded-xl flex gap-1 backdrop-blur-md border border-white/5 relative z-10">
+            <MenuButton id="history" label="Riwayat" icon={History} />
+            <MenuButton id="stats" label="Statistik" icon={BarChart3} />
+            <MenuButton id="manage" label="Kelola" icon={Briefcase} />
+         </div>
       </div>
       
       {/* SCROLLABLE CONTENT */}
-      <div className="flex-1 overflow-y-auto w-full overscroll-none scrollbar-hide">
+      <div className="flex-1 overflow-y-auto w-full overscroll-none scrollbar-hide bg-slate-50">
           {activeTab === 'history' && renderHistory()}
           {activeTab === 'stats' && renderStats()}
           {activeTab === 'manage' && renderManage()}
       </div>
       
-      {/* FOOTER FIXED */}
-      <div className="bg-white border-t border-slate-100 py-3 px-6 pb-6 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-30 flex justify-between items-center shrink-0">
-          <button onClick={() => setActiveTab('history')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'history' ? 'text-indigo-600 scale-105' : 'text-slate-400'}`}>
-              <div className={`p-1.5 rounded-xl ${activeTab === 'history' ? 'bg-indigo-50' : 'bg-transparent'}`}><History size={22} strokeWidth={activeTab === 'history' ? 2.5 : 2} /></div>
-              <span className="text-[10px] font-bold">Riwayat</span>
-          </button>
-          <button onClick={() => setActiveTab('stats')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'stats' ? 'text-indigo-600 scale-105' : 'text-slate-400'}`}>
-              <div className={`p-1.5 rounded-xl ${activeTab === 'stats' ? 'bg-indigo-50' : 'bg-transparent'}`}><BarChart3 size={22} strokeWidth={activeTab === 'stats' ? 2.5 : 2} /></div>
-              <span className="text-[10px] font-bold">Statistik</span>
-          </button>
-          <button onClick={() => setActiveTab('manage')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'manage' ? 'text-indigo-600 scale-105' : 'text-slate-400'}`}>
-              <div className={`p-1.5 rounded-xl ${activeTab === 'manage' ? 'bg-indigo-50' : 'bg-transparent'}`}><Briefcase size={22} strokeWidth={activeTab === 'manage' ? 2.5 : 2} /></div>
-              <span className="text-[10px] font-bold">Kelola</span>
-          </button>
-      </div>
+      {/* FOOTER DIHAPUS - Area Bawah Kosong untuk Scroll */}
     </MobileWrapper>
   );
 };
@@ -779,7 +851,7 @@ const EmployeeDashboard = ({ user, area, logout }) => {
                   <span className="flex items-center gap-3"><LogOut size={18}/> Keluar Akun</span><ArrowRight size={16} className="text-red-300"/>
               </button>
           </div>
-          <p className="text-center text-gray-300 text-xs mt-8">Versi Aplikasi 2.9.0 Logo Update</p>
+          <p className="text-center text-gray-300 text-xs mt-8">Versi Aplikasi 2.9.1 Admin Update</p>
       </div>
   );
 

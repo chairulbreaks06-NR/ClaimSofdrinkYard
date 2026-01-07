@@ -6,9 +6,9 @@ import {
   runTransaction, deleteDoc, getDocs 
 } from 'firebase/firestore';
 import { 
-  Coffee, ClipboardList, Users, Plus, CheckCircle, XCircle, Calendar, 
-  LogOut, Package, MapPin, Home, Clock, Shield, ArrowRight, Lock, 
-  User, Ticket, Edit, Trash2, UserPlus, Building2
+  Coffee, ClipboardList, Users, CheckCircle, Ticket, 
+  LogOut, Package, MapPin, Clock, Shield, ArrowRight, Lock, 
+  User, Edit, Trash2, UserPlus, Building2
 } from 'lucide-react';
 
 // --- 1. Firebase Configuration ---
@@ -30,6 +30,18 @@ const getTodayString = () => formatDate(new Date());
 
 const YARDS = ['Yard Cakung', 'Yard Sukapura', 'Yard Jababeka'];
 
+// Helper untuk format Jam dan Tanggal Indonesia
+const formatDateTime = (timestamp) => {
+  if (!timestamp) return '-';
+  // Handle Firebase Timestamp or standard Date
+  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric', month: 'long', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  }).format(date);
+};
+
 // --- 3. Shared Components ---
 
 const MobileWrapper = ({ children, className = "" }) => (
@@ -40,27 +52,58 @@ const MobileWrapper = ({ children, className = "" }) => (
   </div>
 );
 
+// --- MODAL KUPON (UPDATED: Tambah Tanggal & Jam) ---
 const CouponModal = ({ data, onClose }) => {
   if (!data) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
       <div className="bg-white w-full max-w-xs rounded-3xl overflow-hidden relative shadow-2xl animate-in zoom-in-95 duration-300">
-        <div className="bg-blue-600 h-32 flex items-center justify-center text-center p-4">
-            <div>
-                <div className="bg-white/20 p-3 rounded-full inline-block mb-2">
+        {/* Header Biru */}
+        <div className="bg-blue-600 h-32 flex items-center justify-center text-center p-4 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-full bg-white/10 opacity-50" style={{backgroundImage: 'radial-gradient(circle, #fff 2px, transparent 2.5px)', backgroundSize: '10px 10px'}}></div>
+            <div className="relative z-10">
+                <div className="bg-white/20 p-3 rounded-full inline-block mb-2 backdrop-blur-sm">
                   <Ticket className="text-white" size={32} />
                 </div>
-                <h3 className="text-white font-bold text-xl tracking-wider">KUPON DIGITAL</h3>
-                <p className="text-blue-100 text-[10px] uppercase">{data.location}</p>
+                <h3 className="text-white font-bold text-xl tracking-wider shadow-sm">KUPON DIGITAL</h3>
+                <p className="text-blue-100 text-[10px] uppercase font-bold tracking-widest">{data.location}</p>
             </div>
         </div>
-        <div className="p-6 pt-8 text-center bg-white">
-            <h2 className="text-2xl font-black text-slate-800 mb-6">{data.drinkName}</h2>
-            <div className={`border-2 border-dashed rounded-xl p-4 mb-6 ${data.status === 'approved' ? 'border-green-400 bg-green-50' : data.status === 'rejected' ? 'border-red-400 bg-red-50' : 'border-yellow-400 bg-yellow-50'}`}>
-                <div className={`text-2xl font-black uppercase tracking-widest ${data.status === 'approved' ? 'text-green-500' : data.status === 'rejected' ? 'text-red-500' : 'text-yellow-500'}`}>
-                  {data.status}
+        
+        {/* Body Tiket */}
+        <div className="p-6 pt-6 text-center bg-white relative">
+            {/* Lubang Tiket Dekorasi */}
+            <div className="absolute -top-3 -left-3 w-6 h-6 bg-gray-900 rounded-full"></div>
+            <div className="absolute -top-3 -right-3 w-6 h-6 bg-gray-900 rounded-full"></div>
+
+            <h2 className="text-2xl font-black text-slate-800 mb-2 leading-tight">{data.drinkName}</h2>
+            <p className="text-xs text-gray-400 mb-6">Tunjukkan kupon ini ke petugas pantry</p>
+
+            {/* Status Box */}
+            <div className={`border-2 border-dashed rounded-xl p-3 mb-6 ${data.status === 'approved' ? 'border-green-400 bg-green-50' : data.status === 'rejected' ? 'border-red-400 bg-red-50' : 'border-yellow-400 bg-yellow-50'}`}>
+                <div className={`text-xl font-black uppercase tracking-widest ${data.status === 'approved' ? 'text-green-600' : data.status === 'rejected' ? 'text-red-600' : 'text-yellow-600'}`}>
+                  {data.status === 'pending' ? 'MENUNGGU' : data.status === 'approved' ? 'DISETUJUI' : 'DITOLAK'}
                 </div>
             </div>
+
+            {/* INFO TANGGAL & JAM (NEW) */}
+            <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg mb-6">
+               <div className="text-left">
+                  <p className="text-[10px] text-gray-400 uppercase font-bold">Waktu Request</p>
+                  <p className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                    <Clock size={12}/> {formatDateTime(data.timestamp)}
+                  </p>
+               </div>
+               {data.processedAt && (
+                   <div className="text-right border-l pl-3">
+                      <p className="text-[10px] text-gray-400 uppercase font-bold">Diproses</p>
+                      <p className="text-xs font-bold text-slate-700">
+                        {new Date(data.processedAt.toDate()).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'})}
+                      </p>
+                   </div>
+               )}
+            </div>
+
             <button onClick={onClose} className="w-full bg-slate-800 text-white font-bold py-3.5 rounded-xl shadow-lg active:scale-95 transition-transform">
                 Tutup
             </button>
@@ -70,7 +113,7 @@ const CouponModal = ({ data, onClose }) => {
   );
 };
 
-// --- 4. Login Screen (UPDATED: NRP Support) ---
+// --- 4. Login Screen ---
 
 const LoginScreen = ({ onLoginSuccess }) => {
   const [nrp, setNrp] = useState('');
@@ -84,7 +127,6 @@ const LoginScreen = ({ onLoginSuccess }) => {
     setError('');
 
     try {
-      // 1. Cek Master Login (Hardcoded)
       if (nrp.toUpperCase() === 'ADMIN' && password === 'GSI2025!') {
         onLoginSuccess({
            uid: 'master-admin',
@@ -95,7 +137,6 @@ const LoginScreen = ({ onLoginSuccess }) => {
         return;
       }
 
-      // 2. Cek Database Users via NRP
       const q = query(collection(db, 'users'), where('nrp', '==', nrp), where('password', '==', password));
       const querySnapshot = await getDocs(q);
 
@@ -178,7 +219,7 @@ const AreaSelectionScreen = ({ user, onSelectArea, onLogout }) => {
   );
 };
 
-// --- 5. Admin Dashboard (UPDATED: NRP Support) ---
+// --- 5. Admin Dashboard (FIXED & UPDATED) ---
 const AdminDashboard = ({ user, area, logout }) => {
   const [activeTab, setActiveTab] = useState('approvals'); 
   const [inventory, setInventory] = useState([]);
@@ -189,7 +230,7 @@ const AdminDashboard = ({ user, area, logout }) => {
   const [newItemStock, setNewItemStock] = useState('');
   const [editingItem, setEditingItem] = useState(null); 
 
-  // State Input User (UPDATED)
+  // State Input User
   const [usersList, setUsersList] = useState([]);
   const [newUserNrp, setNewUserNrp] = useState('');
   const [newUserPass, setNewUserPass] = useState('');
@@ -208,21 +249,25 @@ const AdminDashboard = ({ user, area, logout }) => {
     return onSnapshot(q, (snap) => setPendingClaims(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
   }, [area]);
 
-  // 3. Fetch Users (Only if General Admin)
+  // 3. Fetch Users
   useEffect(() => {
-    if(user.role === 'general_admin') {
-        const q = query(collection(db, 'users'));
+    const shouldFetchUsers = user.role === 'general_admin' || user.role === 'admin_area';
+    if(shouldFetchUsers) {
+        let q;
+        if (user.role === 'general_admin') {
+            q = query(collection(db, 'users'), orderBy('displayName'));
+        } else {
+            q = query(collection(db, 'users'), where('role', '==', 'user'));
+        }
         return onSnapshot(q, (snap) => setUsersList(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     }
   }, [user.role]);
 
   // --- ACTIONS ---
 
-  // A. Inventory Management
   const handleSaveInventory = async (e) => {
     e.preventDefault();
     if (!newItemName || !newItemStock) return;
-    
     try {
         if (editingItem) {
             await updateDoc(doc(db, 'inventory', editingItem.id), {
@@ -257,49 +302,61 @@ const AdminDashboard = ({ user, area, logout }) => {
       if(confirm("Hapus item ini?")) await deleteDoc(doc(db, 'inventory', id));
   };
 
-  // B. Claim Processing
+  // --- LOGIC APPROVAL YANG DIPERBAIKI ---
   const processClaim = async (claim, isApproved) => {
     try {
-        const claimRef = doc(db, 'claims', claim.id);
-        
-        await runTransaction(db, async (t) => {
-            if (isApproved) {
-                const invRef = doc(db, 'inventory', claim.inventoryId);
-                const invDoc = await t.get(invRef);
-                
-                if (!invDoc.exists()) {
-                    throw new Error("Master stok barang ini sudah dihapus.");
-                }
+        const adminNrp = user.nrp || user.email || 'Admin'; // Fallback jika NRP kosong
 
-                const currentStock = invDoc.data().warehouseStock || 0;
-                
-                // Update Stok
-                t.update(invRef, { warehouseStock: Math.max(0, currentStock - 1) });
-                
-                // Update Klaim (Simpan NRP Admin yg memproses)
-                t.update(claimRef, { 
-                    status: 'approved', 
-                    processedAt: serverTimestamp(), 
-                    processedBy: user.nrp 
-                });
-            } else {
-                // Reject
-                t.update(claimRef, { 
-                    status: 'rejected', 
-                    processedAt: serverTimestamp(), 
-                    processedBy: user.nrp 
-                });
+        if (!isApproved) {
+            // JIKA DITOLAK: Gunakan updateDoc biasa (lebih stabil daripada Transaction)
+            await updateDoc(doc(db, 'claims', claim.id), {
+                status: 'rejected',
+                processedAt: serverTimestamp(),
+                processedBy: adminNrp
+            });
+            return; // Selesai
+        }
+
+        // JIKA DITERIMA: Gunakan Transaction untuk Stok
+        await runTransaction(db, async (t) => {
+            // 1. Cek ketersediaan Inventory
+            const invRef = doc(db, 'inventory', claim.inventoryId);
+            const invDoc = await t.get(invRef);
+            
+            if (!invDoc.exists()) {
+                throw new Error("Master barang sudah dihapus!");
             }
+
+            const currentStock = invDoc.data().warehouseStock || 0;
+            
+            // 2. Cek apakah stok cukup
+            if (currentStock <= 0) {
+                throw new Error("Stok barang habis! Tidak bisa approve.");
+            }
+
+            // 3. Update Stok (Kurangi 1)
+            t.update(invRef, { warehouseStock: currentStock - 1 });
+            
+            // 4. Update Status Klaim
+            const claimRef = doc(db, 'claims', claim.id);
+            t.update(claimRef, { 
+                status: 'approved', 
+                processedAt: serverTimestamp(), 
+                processedBy: adminNrp 
+            });
         });
     } catch (e) {
-        console.error("Transaction failed: ", e);
+        console.error("Proses Gagal: ", e);
         alert("Gagal memproses: " + e.message);
     }
   };
 
-  // C. User Management (UPDATED: NRP Support)
   const handleAddUser = async (e) => {
       e.preventDefault();
+      if (user.role === 'admin_area' && newUserRole !== 'user') {
+          alert("Admin Area hanya boleh menambahkan Karyawan biasa.");
+          return;
+      }
       try {
           await addDoc(collection(db, 'users'), {
               nrp: newUserNrp,
@@ -335,7 +392,8 @@ const AdminDashboard = ({ user, area, logout }) => {
           <button onClick={() => setActiveTab('inventory')} className={`p-3 rounded-xl flex flex-col items-center gap-1 ${activeTab === 'inventory' ? 'bg-white text-indigo-900' : 'bg-white/10'}`}>
             <Package size={20} /> <span className="text-[10px] font-bold">Stok</span>
           </button>
-          {user.role === 'general_admin' && (
+          
+          {(user.role === 'general_admin' || user.role === 'admin_area') && (
              <button onClick={() => {setActiveTab('users'); setEditingItem(null);}} className={`p-3 rounded-xl flex flex-col items-center gap-1 ${activeTab === 'users' ? 'bg-white text-indigo-900' : 'bg-white/10'}`}>
                 <Users size={20} /> <span className="text-[10px] font-bold">Users</span>
              </button>
@@ -353,16 +411,30 @@ const AdminDashboard = ({ user, area, logout }) => {
                <div className="text-center py-10 text-gray-400">Tidak ada antrian di {area}.</div>
             ) : pendingClaims.map(claim => (
                 <div key={claim.id} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                    <div className="flex justify-between">
+                    <div className="flex justify-between items-start">
                         <div>
-                            <div className="font-bold text-slate-800">{claim.userName}</div>
-                            <div className="text-sm text-indigo-600 font-medium">{claim.drinkName}</div>
-                            <div className="text-xs text-gray-400 mt-1">{new Date(claim.timestamp?.toDate()).toLocaleTimeString()}</div>
+                            <div className="font-bold text-slate-800 text-lg">{claim.userName}</div>
+                            <div className="text-xs text-gray-500 mb-2">NRP: {claim.userNrp}</div>
+                            
+                            <div className="bg-blue-50 px-3 py-1 rounded-lg inline-block border border-blue-100">
+                                <span className="text-sm text-blue-700 font-bold flex items-center gap-1">
+                                    <Coffee size={14}/> {claim.drinkName}
+                                </span>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                             <div className="text-[10px] text-gray-400 font-bold bg-gray-100 px-2 py-1 rounded">
+                                {formatDateTime(claim.timestamp).split(',')[1]}
+                             </div>
                         </div>
                     </div>
-                    <div className="flex gap-2 mt-3">
-                        <button onClick={() => processClaim(claim, true)} className="flex-1 bg-green-50 text-green-600 py-2 rounded-lg font-bold text-sm border border-green-200 hover:bg-green-100">Terima</button>
-                        <button onClick={() => processClaim(claim, false)} className="flex-1 bg-red-50 text-red-600 py-2 rounded-lg font-bold text-sm border border-red-200 hover:bg-red-100">Tolak</button>
+                    <div className="flex gap-2 mt-4">
+                        <button onClick={() => processClaim(claim, true)} className="flex-1 bg-emerald-500 text-white py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-transform hover:bg-emerald-600">
+                            Terima
+                        </button>
+                        <button onClick={() => processClaim(claim, false)} className="flex-1 bg-white text-red-500 py-3 rounded-xl font-bold text-sm border border-red-100 shadow-sm active:scale-95 transition-transform hover:bg-red-50">
+                            Tolak
+                        </button>
                     </div>
                 </div>
             ))}
@@ -408,11 +480,11 @@ const AdminDashboard = ({ user, area, logout }) => {
           </div>
         )}
 
-        {/* --- TAB USER MANAGEMENT (General Admin Only) --- */}
-        {activeTab === 'users' && user.role === 'general_admin' && (
+        {/* --- TAB USER MANAGEMENT --- */}
+        {activeTab === 'users' && (user.role === 'general_admin' || user.role === 'admin_area') && (
              <div className="space-y-4">
                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-purple-100">
-                    <h3 className="font-bold text-sm mb-3 text-slate-700 flex items-center gap-2"><UserPlus size={16}/> Tambah Karyawan</h3>
+                    <h3 className="font-bold text-sm mb-3 text-slate-700 flex items-center gap-2"><UserPlus size={16}/> Tambah User</h3>
                     <form onSubmit={handleAddUser} className="space-y-2">
                         <input required placeholder="Nama Lengkap" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" 
                             value={newUserName} onChange={e=>setNewUserName(e.target.value)} />
@@ -423,18 +495,28 @@ const AdminDashboard = ({ user, area, logout }) => {
                         <input required type="text" placeholder="Password" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" 
                             value={newUserPass} onChange={e=>setNewUserPass(e.target.value)} />
                         
-                        <select className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900"
-                            value={newUserRole} onChange={e=>setNewUserRole(e.target.value)}>
+                        <select 
+                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900"
+                            value={newUserRole} 
+                            onChange={e=>setNewUserRole(e.target.value)}
+                            disabled={user.role === 'admin_area'} 
+                        >
                             <option value="user">User (Karyawan)</option>
-                            <option value="admin_area">Admin Area</option>
-                            <option value="general_admin">General Admin</option>
+                            {user.role === 'general_admin' && (
+                                <>
+                                    <option value="admin_area">Admin Area</option>
+                                    <option value="general_admin">General Admin</option>
+                                </>
+                            )}
                         </select>
                         <button type="submit" className="w-full bg-purple-600 text-white py-2 rounded-lg font-bold text-sm">Tambah User</button>
                     </form>
                  </div>
                  
                  <div className="space-y-2">
-                     <h3 className="font-bold text-xs text-gray-500 uppercase px-2">Daftar Karyawan</h3>
+                     <h3 className="font-bold text-xs text-gray-500 uppercase px-2">
+                        {user.role === 'general_admin' ? 'Semua User' : 'Daftar Karyawan'}
+                     </h3>
                      {usersList.map(u => (
                          <div key={u.id} className="bg-white p-3 rounded-xl border border-slate-100 flex justify-between items-center">
                              <div>
@@ -460,13 +542,11 @@ const EmployeeDashboard = ({ user, area, logout }) => {
   const [showCoupon, setShowCoupon] = useState(false);
   
   useEffect(() => {
-    // Filter Inventory by Area
     const q = query(collection(db, 'inventory'), where('area', '==', area), orderBy('name'));
     return onSnapshot(q, (snap) => setMenuItems(snap.docs.map(d => ({id: d.id, ...d.data()}))));
   }, [area]);
 
   useEffect(() => {
-    // Check Claim for Today + Area
     const q = query(collection(db, 'claims'), where('userId', '==', user.uid), where('date', '==', getTodayString()), where('status', '!=', 'rejected'));
     return onSnapshot(q, (snap) => {
       if (!snap.empty) setTodaysClaim({ id: snap.docs[0].id, ...snap.docs[0].data() });
@@ -482,7 +562,7 @@ const EmployeeDashboard = ({ user, area, logout }) => {
         const claimData = {
             userId: user.uid,
             userName: user.displayName,
-            userNrp: user.nrp || '-', // Simpan NRP di data klaim
+            userNrp: user.nrp || '-',
             inventoryId: item.id,
             drinkName: item.name,
             date: getTodayString(),
@@ -512,7 +592,6 @@ const EmployeeDashboard = ({ user, area, logout }) => {
       </div>
 
       <div className="p-6 overflow-y-auto pb-24">
-         {/* Status Card */}
          <div className={`p-5 rounded-3xl text-white shadow-xl mb-6 relative overflow-hidden ${todaysClaim ? 'bg-slate-800' : 'bg-gradient-to-r from-blue-600 to-indigo-600'}`}>
              <div className="relative z-10">
                  <p className="text-xs opacity-80 mb-1">Status Hari Ini</p>
@@ -529,7 +608,6 @@ const EmployeeDashboard = ({ user, area, logout }) => {
              <ClipboardList className="absolute right-4 bottom-4 text-white/10" size={60} />
          </div>
 
-         {/* Menu Grid */}
          <h3 className="font-bold text-slate-700 mb-4">Menu Tersedia</h3>
          <div className="space-y-3">
              {menuItems.length === 0 && <p className="text-gray-400 text-center text-sm">Tidak ada item di area ini.</p>}
@@ -571,17 +649,14 @@ const App = () => {
     setSelectedArea(null);
   };
 
-  // 1. Belum Login
   if (!user) {
     return <LoginScreen onLoginSuccess={setUser} />;
   }
 
-  // 2. Sudah Login, Belum Pilih Area
   if (!selectedArea) {
     return <AreaSelectionScreen user={user} onSelectArea={setSelectedArea} onLogout={handleLogout} />;
   }
 
-  // 3. Masuk Dashboard Sesuai Role
   if (user.role === 'admin_area' || user.role === 'general_admin') {
       return <AdminDashboard user={user} area={selectedArea} logout={handleLogout} />;
   }

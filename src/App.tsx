@@ -9,7 +9,7 @@ import {
   Coffee, ClipboardList, Users, CheckCircle, Ticket, 
   LogOut, Package, MapPin, Clock, Shield, ArrowRight, Lock, 
   User, Edit, Trash2, UserPlus, Building2, WifiOff,
-  LayoutDashboard, History, UserCircle, Search, Filter, Inbox, Briefcase
+  LayoutDashboard, History, UserCircle, Search, Inbox, Briefcase, Loader2
 } from 'lucide-react';
 
 // --- 1. Firebase Configuration ---
@@ -54,13 +54,13 @@ const SuccessModal = ({ message, onClose }) => {
     if (!message) return null;
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
-            <div className="bg-white p-6 rounded-2xl shadow-2xl flex flex-col items-center animate-in zoom-in-95">
+            <div className="bg-white p-6 rounded-2xl shadow-2xl flex flex-col items-center animate-in zoom-in-95 w-3/4 max-w-sm">
                 <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-4">
                     <CheckCircle size={32} />
                 </div>
                 <h3 className="text-xl font-bold text-slate-800 mb-1">Berhasil!</h3>
-                <p className="text-slate-500 text-sm mb-4">{message}</p>
-                <button onClick={onClose} className="bg-slate-800 text-white px-6 py-2 rounded-xl text-sm font-bold">Tutup</button>
+                <p className="text-slate-500 text-sm mb-4 text-center">{message}</p>
+                <button onClick={onClose} className="bg-slate-800 text-white px-6 py-2 rounded-xl text-sm font-bold w-full">Tutup</button>
             </div>
         </div>
     );
@@ -87,7 +87,7 @@ const ConnectionStatus = () => {
 };
 
 const MobileWrapper = ({ children, className = "" }) => (
-  <div className="min-h-screen bg-gray-900 flex justify-center items-center font-sans">
+  <div className="min-h-screen bg-gray-900 flex justify-center items-center font-sans overflow-hidden">
     <div className={`w-full max-w-md h-[100dvh] bg-gray-50 flex flex-col relative overflow-hidden shadow-2xl md:rounded-3xl ${className}`}>
       <ConnectionStatus />
       {children}
@@ -168,13 +168,13 @@ const LoginScreen = ({ onLoginSuccess }) => {
 
   return (
     <MobileWrapper className="bg-gradient-to-br from-slate-900 to-indigo-950">
-      <div className="flex-1 flex flex-col justify-center px-8 relative z-10">
+      <div className="flex-1 flex flex-col justify-center px-8 relative z-10 w-full">
         <div className="bg-white/10 backdrop-blur-md w-24 h-24 rounded-3xl flex items-center justify-center mb-6 shadow-xl mx-auto border border-white/10">
           <Coffee size={48} className="text-blue-300" />
         </div>
         <h1 className="text-3xl font-bold text-white text-center mb-2">SiapMinum GSI</h1>
         <p className="text-blue-200 mb-8 text-center text-sm opacity-80">Portal Layanan Karyawan</p>
-        <form onSubmit={handleLogin} className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <form onSubmit={handleLogin} className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 w-full">
           <div className="relative">
             <User className="absolute left-4 top-3.5 text-gray-400" size={20} />
             <input type="text" placeholder="NRP" className="w-full bg-white/10 text-white placeholder:text-gray-400 border border-white/20 rounded-xl py-3 pl-12 pr-4 focus:outline-none"
@@ -199,17 +199,17 @@ const LoginScreen = ({ onLoginSuccess }) => {
 const AreaSelectionScreen = ({ user, onSelectArea, onLogout }) => {
   return (
     <MobileWrapper className="bg-slate-50">
-      <div className="p-8 h-full flex flex-col">
+      <div className="p-8 h-full flex flex-col w-full">
         <div className="flex justify-between items-center mb-8">
             <div><h1 className="text-2xl font-bold text-slate-800">Pilih Area</h1><p className="text-slate-500 text-sm">Halo, {user.displayName}</p></div>
             <button onClick={onLogout} className="text-red-500 bg-red-50 p-2 rounded-full"><LogOut size={18}/></button>
         </div>
-        <div className="grid gap-4">
+        <div className="grid gap-4 w-full">
             {YARDS.map((yard) => (
                 <button key={yard} onClick={() => onSelectArea(yard)}
-                    className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between hover:border-blue-500 transition-all group">
+                    className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between hover:border-blue-500 transition-all group w-full text-left">
                     <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white"><Building2 size={24} /></div>
+                        <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white flex-shrink-0"><Building2 size={24} /></div>
                         <span className="font-bold text-lg text-slate-700">{yard}</span>
                     </div>
                     <ArrowRight className="text-slate-300 group-hover:text-blue-500" />
@@ -221,10 +221,11 @@ const AreaSelectionScreen = ({ user, onSelectArea, onLogout }) => {
   );
 };
 
-// --- 6. Admin Dashboard (FIXED KEYBOARD ISSUE) ---
+// --- 6. Admin Dashboard ---
 const AdminDashboard = ({ user, area, logout }) => {
   const [activeTab, setActiveTab] = useState('inbox');
   const [successMsg, setSuccessMsg] = useState(null);
+  const [processingId, setProcessingId] = useState(null); // Loading state per item
   
   // Data State
   const [pendingClaims, setPendingClaims] = useState([]);
@@ -283,24 +284,34 @@ const AdminDashboard = ({ user, area, logout }) => {
   };
 
   const processClaim = async (claim, isApproved) => {
+    if (processingId) return; // Prevent double clicks
+    setProcessingId(claim.id);
+    
     try {
         const adminNrp = user.nrp || 'Admin';
+        
         if (!isApproved) {
             await updateDoc(doc(db, 'claims', claim.id), { status: 'rejected', processedAt: serverTimestamp(), processedBy: adminNrp });
             showSuccess(`Ditolak: ${claim.userName}`);
-            return; 
+        } else {
+            await runTransaction(db, async (t) => {
+                const invRef = doc(db, 'inventory', claim.inventoryId);
+                const invDoc = await t.get(invRef);
+                if (!invDoc.exists()) throw new Error("Barang dihapus!");
+                
+                const currentStock = invDoc.data().warehouseStock || 0;
+                if (currentStock <= 0) throw new Error("Stok habis!");
+                
+                t.update(invRef, { warehouseStock: currentStock - 1 });
+                t.update(doc(db, 'claims', claim.id), { status: 'approved', processedAt: serverTimestamp(), processedBy: adminNrp });
+            });
+            showSuccess(`Disetujui: ${claim.userName}`);
         }
-        await runTransaction(db, async (t) => {
-            const invRef = doc(db, 'inventory', claim.inventoryId);
-            const invDoc = await t.get(invRef);
-            if (!invDoc.exists()) throw new Error("Barang dihapus!");
-            const currentStock = invDoc.data().warehouseStock || 0;
-            if (currentStock <= 0) throw new Error("Stok habis!");
-            t.update(invRef, { warehouseStock: currentStock - 1 });
-            t.update(doc(db, 'claims', claim.id), { status: 'approved', processedAt: serverTimestamp(), processedBy: adminNrp });
-        });
-        showSuccess(`Disetujui: ${claim.userName}`);
-    } catch (e) { alert("Gagal: " + e.message); }
+    } catch (e) { 
+        alert("Gagal: " + e.message); 
+    } finally {
+        setProcessingId(null);
+    }
   };
 
   const handleSaveInventory = async (e) => {
@@ -325,9 +336,9 @@ const AdminDashboard = ({ user, area, logout }) => {
       } catch (e) { alert("Gagal tambah user"); }
   };
 
-  // --- RENDER FUNCTIONS (Agar keyboard tidak close) ---
+  // --- RENDER FUNCTIONS ---
   const renderInbox = () => (
-      <div className="p-6 pb-28">
+      <div className="p-6 pb-28 w-full">
           <div className="flex justify-between items-center mb-6">
               <h3 className="font-bold text-slate-700 text-xl flex items-center gap-2"><Inbox size={20}/> Kotak Masuk</h3>
               <span className="bg-red-100 text-red-600 px-2 py-1 rounded-full text-xs font-bold">{pendingClaims.length} Pending</span>
@@ -343,7 +354,7 @@ const AdminDashboard = ({ user, area, logout }) => {
                       <div key={claim.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 relative">
                           <div className="flex justify-between items-start mb-3">
                               <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 font-bold">
+                                  <div className="w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 font-bold flex-shrink-0">
                                       {claim.userName.charAt(0)}
                                   </div>
                                   <div>
@@ -358,8 +369,18 @@ const AdminDashboard = ({ user, area, logout }) => {
                               <span className="text-sm font-bold text-slate-700">{claim.drinkName}</span>
                           </div>
                           <div className="grid grid-cols-2 gap-3">
-                              <button onClick={() => processClaim(claim, false)} className="py-2.5 rounded-xl border border-red-100 text-red-500 font-bold text-xs hover:bg-red-50 transition-colors">Tolak</button>
-                              <button onClick={() => processClaim(claim, true)} className="py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs shadow-md shadow-indigo-200 hover:bg-indigo-700 transition-colors">Setujui</button>
+                              <button 
+                                disabled={processingId === claim.id}
+                                onClick={() => processClaim(claim, false)} 
+                                className="py-2.5 rounded-xl border border-red-100 text-red-500 font-bold text-xs hover:bg-red-50 transition-colors disabled:opacity-50">
+                                {processingId === claim.id ? <Loader2 className="animate-spin mx-auto" size={16}/> : 'Tolak'}
+                              </button>
+                              <button 
+                                disabled={processingId === claim.id}
+                                onClick={() => processClaim(claim, true)} 
+                                className="py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs shadow-md shadow-indigo-200 hover:bg-indigo-700 transition-colors disabled:bg-indigo-400">
+                                {processingId === claim.id ? <Loader2 className="animate-spin mx-auto" size={16}/> : 'Setujui'}
+                              </button>
                           </div>
                       </div>
                   ))}
@@ -376,12 +397,12 @@ const AdminDashboard = ({ user, area, logout }) => {
       });
 
       return (
-        <div className="p-6 pb-28">
+        <div className="p-6 pb-28 w-full">
             <h3 className="font-bold text-slate-700 text-xl mb-4 flex items-center gap-2"><History size={20}/> Riwayat Proses</h3>
             <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-4 space-y-3">
                 <div className="relative">
                     <Search size={16} className="absolute left-3 top-3 text-gray-400"/>
-                    <input type="text" placeholder="Cari nama karyawan..." className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-indigo-400"
+                    <input type="text" placeholder="Cari nama karyawan..." className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-10 pr-4 text-sm text-gray-900 focus:outline-none focus:border-indigo-400"
                         value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} />
                 </div>
                 <div className="flex gap-2 overflow-x-auto pb-1">
@@ -412,14 +433,14 @@ const AdminDashboard = ({ user, area, logout }) => {
   };
 
   const renderManage = () => (
-      <div className="p-6 pb-28 space-y-8">
+      <div className="p-6 pb-28 space-y-8 w-full">
           <div>
             <h3 className="font-bold text-slate-700 text-lg mb-3 flex items-center gap-2"><Package size={18}/> Kelola Stok</h3>
             <div className="bg-white p-4 rounded-2xl shadow-sm border border-indigo-100 mb-4">
                 <form onSubmit={handleSaveInventory} className="space-y-2">
-                    <input required placeholder="Nama Minuman" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" value={newItemName} onChange={e=>setNewItemName(e.target.value)} />
+                    <input required placeholder="Nama Minuman" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" value={newItemName} onChange={e=>setNewItemName(e.target.value)} />
                     <div className="flex gap-2">
-                        <input required type="number" placeholder="Jumlah" className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" value={newItemStock} onChange={e=>setNewItemStock(e.target.value)} />
+                        <input required type="number" placeholder="Jumlah" className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" value={newItemStock} onChange={e=>setNewItemStock(e.target.value)} />
                         <button type="submit" className={`px-4 py-2 rounded-lg text-white font-bold text-sm ${editingItem ? 'bg-orange-500' : 'bg-indigo-600'}`}>{editingItem ? 'Update' : 'Simpan'}</button>
                     </div>
                     {editingItem && <button type="button" onClick={()=>{setEditingItem(null); setNewItemName(''); setNewItemStock('');}} className="w-full bg-gray-100 text-gray-500 py-1 rounded text-xs">Batal Edit</button>}
@@ -445,10 +466,10 @@ const AdminDashboard = ({ user, area, logout }) => {
                  <h3 className="font-bold text-slate-700 text-lg mb-3 flex items-center gap-2"><Users size={18}/> Kelola User</h3>
                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-purple-100 mb-4">
                     <form onSubmit={handleAddUser} className="space-y-2">
-                        <input required placeholder="Nama" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" value={newUserName} onChange={e=>setNewUserName(e.target.value)} />
+                        <input required placeholder="Nama" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" value={newUserName} onChange={e=>setNewUserName(e.target.value)} />
                         <div className="flex gap-2">
-                            <input required type="text" placeholder="NRP" className="w-1/2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" value={newUserNrp} onChange={e=>setNewUserNrp(e.target.value)} />
-                            <input required type="text" placeholder="Pass" className="w-1/2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm" value={newUserPass} onChange={e=>setNewUserPass(e.target.value)} />
+                            <input required type="text" placeholder="NRP" className="w-1/2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" value={newUserNrp} onChange={e=>setNewUserNrp(e.target.value)} />
+                            <input required type="text" placeholder="Pass" className="w-1/2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" value={newUserPass} onChange={e=>setNewUserPass(e.target.value)} />
                         </div>
                         <button type="submit" className="w-full bg-purple-600 text-white py-2 rounded-lg font-bold text-sm">Tambah User</button>
                     </form>
@@ -469,13 +490,13 @@ const AdminDashboard = ({ user, area, logout }) => {
   return (
     <MobileWrapper className="bg-slate-50">
       <SuccessModal message={successMsg} onClose={() => setSuccessMsg(null)} />
-      <div className="bg-indigo-900 px-6 py-6 rounded-b-[2rem] shadow-lg sticky top-0 z-20 flex justify-between items-center text-white">
+      <div className="bg-indigo-900 px-6 py-6 rounded-b-[2rem] shadow-lg sticky top-0 z-20 flex justify-between items-center text-white w-full">
          <div><h2 className="text-lg font-bold">Admin Panel</h2><p className="text-xs text-indigo-300 flex items-center gap-1"><MapPin size={10}/> {area}</p></div>
          <button onClick={logout} className="bg-white/20 p-2 rounded-full hover:bg-white/30"><LogOut size={16}/></button>
       </div>
       
       {/* ISI KONTEN (RENDER CALL) */}
-      <div className="flex-1 overflow-y-auto h-full">
+      <div className="flex-1 overflow-y-auto h-full w-full">
           {activeTab === 'inbox' && renderInbox()}
           {activeTab === 'history' && renderHistory()}
           {activeTab === 'manage' && renderManage()}
@@ -499,13 +520,14 @@ const AdminDashboard = ({ user, area, logout }) => {
   );
 };
 
-// --- 7. Employee Dashboard (FIXED KEYBOARD ISSUE) ---
+// --- 7. Employee Dashboard ---
 const EmployeeDashboard = ({ user, area, logout }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [menuItems, setMenuItems] = useState([]);
   const [todaysClaim, setTodaysClaim] = useState(null);
   const [showCoupon, setShowCoupon] = useState(false);
   const [historyList, setHistoryList] = useState([]);
+  const [isClaiming, setIsClaiming] = useState(false); // Loading state for claiming
 
   useEffect(() => {
     const q = query(collection(db, 'inventory'), where('area', '==', area), orderBy('name'));
@@ -529,7 +551,10 @@ const EmployeeDashboard = ({ user, area, logout }) => {
 
   const handleOrder = async (item) => {
     if (todaysClaim) return;
+    if (isClaiming) return; // Prevent double clicks
     if (item.warehouseStock <= 0) { alert("Stok Habis!"); return; }
+    
+    setIsClaiming(true);
     try {
         await addDoc(collection(db, 'claims'), {
             userId: user.uid, userName: user.displayName, userNrp: user.nrp || '-',
@@ -537,11 +562,15 @@ const EmployeeDashboard = ({ user, area, logout }) => {
             status: 'pending', location: area, area: area, timestamp: serverTimestamp()
         });
         setShowCoupon(true);
-    } catch (e) { alert("Gagal klaim: " + e.message); }
+    } catch (e) { 
+        alert("Gagal klaim: " + e.message); 
+    } finally {
+        setIsClaiming(false);
+    }
   };
 
   const renderDashboard = () => (
-    <div className="p-6 pb-28">
+    <div className="p-6 pb-28 w-full">
          <div className={`p-5 rounded-3xl text-white shadow-xl mb-6 relative overflow-hidden ${todaysClaim ? 'bg-slate-800' : 'bg-gradient-to-r from-blue-600 to-indigo-600'}`}>
              <div className="relative z-10">
                  <p className="text-xs opacity-80 mb-1">Status Hari Ini</p>
@@ -564,7 +593,7 @@ const EmployeeDashboard = ({ user, area, logout }) => {
              {menuItems.map(item => (
                  <div key={item.id} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between">
                      <div className="flex items-center gap-4">
-                         <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center"><Coffee size={24}/></div>
+                         <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center flex-shrink-0"><Coffee size={24}/></div>
                          <div>
                              <div className="font-bold text-slate-800">{item.name}</div>
                              <div className={`text-xs font-bold px-2 py-0.5 rounded-md w-fit mt-1 flex items-center gap-1 ${item.warehouseStock > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
@@ -572,9 +601,11 @@ const EmployeeDashboard = ({ user, area, logout }) => {
                              </div>
                          </div>
                      </div>
-                     <button disabled={todaysClaim || item.warehouseStock <= 0} onClick={()=>handleOrder(item)}
-                       className={`px-4 py-2 rounded-xl font-bold text-xs shadow-sm transition-all active:scale-95 ${todaysClaim || item.warehouseStock <= 0 ? 'bg-gray-100 text-gray-400' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
-                         {todaysClaim ? 'Selesai' : item.warehouseStock <= 0 ? 'Habis' : 'Klaim'}
+                     <button 
+                       disabled={todaysClaim || item.warehouseStock <= 0 || isClaiming} 
+                       onClick={()=>handleOrder(item)}
+                       className={`px-4 py-2 rounded-xl font-bold text-xs shadow-sm transition-all active:scale-95 flex-shrink-0 flex items-center justify-center ${todaysClaim || item.warehouseStock <= 0 ? 'bg-gray-100 text-gray-400' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+                         {isClaiming ? <Loader2 className="animate-spin" size={16}/> : (todaysClaim ? 'Selesai' : item.warehouseStock <= 0 ? 'Habis' : 'Klaim')}
                      </button>
                  </div>
              ))}
@@ -583,7 +614,7 @@ const EmployeeDashboard = ({ user, area, logout }) => {
   );
 
   const renderHistory = () => (
-      <div className="p-6 pb-28">
+      <div className="p-6 pb-28 w-full">
           <h3 className="font-bold text-slate-700 mb-4 text-xl">Riwayat Klaim</h3>
           <div className="space-y-3">
               {historyList.length === 0 && <p className="text-gray-400 text-center mt-10">Belum ada riwayat.</p>}
@@ -606,7 +637,7 @@ const EmployeeDashboard = ({ user, area, logout }) => {
   );
 
   const renderProfile = () => (
-      <div className="p-6 pb-28">
+      <div className="p-6 pb-28 w-full">
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 text-center mb-6">
               <div className="w-20 h-20 bg-slate-100 rounded-full mx-auto mb-4 flex items-center justify-center text-slate-400"><User size={40} /></div>
               <h2 className="text-xl font-bold text-slate-800">{user.displayName}</h2>
@@ -618,20 +649,20 @@ const EmployeeDashboard = ({ user, area, logout }) => {
                   <span className="flex items-center gap-3"><LogOut size={18}/> Keluar Akun</span><ArrowRight size={16} className="text-red-300"/>
               </button>
           </div>
-          <p className="text-center text-gray-300 text-xs mt-8">Versi Aplikasi 2.2.1</p>
+          <p className="text-center text-gray-300 text-xs mt-8">Versi Aplikasi 2.2.3</p>
       </div>
   );
 
   return (
     <MobileWrapper className="bg-slate-50">
       {showCoupon && <CouponModal data={todaysClaim} onClose={() => setShowCoupon(false)} />}
-      <div className="bg-white px-6 py-4 rounded-b-3xl shadow-sm sticky top-0 z-20 flex justify-between items-center">
+      <div className="bg-white px-6 py-4 rounded-b-3xl shadow-sm sticky top-0 z-20 flex justify-between items-center w-full">
          <div><h2 className="text-lg font-bold text-slate-800">{activeTab === 'dashboard' ? 'Beranda' : activeTab === 'history' ? 'Riwayat' : 'Profil Saya'}</h2><p className="text-xs text-slate-400 flex items-center gap-1"><MapPin size={10}/> {area}</p></div>
-         <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-xs">{user.displayName.charAt(0)}</div>
+         <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">{user.displayName.charAt(0)}</div>
       </div>
       
       {/* ISI KONTEN (RENDER CALL) */}
-      <div className="flex-1 overflow-y-auto h-full">
+      <div className="flex-1 overflow-y-auto h-full w-full">
           {activeTab === 'dashboard' && renderDashboard()}
           {activeTab === 'history' && renderHistory()}
           {activeTab === 'profile' && renderProfile()}

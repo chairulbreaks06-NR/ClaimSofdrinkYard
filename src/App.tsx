@@ -9,7 +9,7 @@ import {
   Coffee, ClipboardList, Users, CheckCircle, Ticket, 
   LogOut, Package, MapPin, Clock, Shield, ArrowRight, Lock, 
   User, Edit, Trash2, UserPlus, Building2, WifiOff,
-  LayoutDashboard, History, UserCircle, Search, Filter, Inbox, Briefcase, X
+  LayoutDashboard, History, UserCircle, Search, Filter, Inbox, Briefcase
 } from 'lucide-react';
 
 // --- 1. Firebase Configuration ---
@@ -221,14 +221,14 @@ const AreaSelectionScreen = ({ user, onSelectArea, onLogout }) => {
   );
 };
 
-// --- 6. Admin Dashboard (RE-DESIGN) ---
+// --- 6. Admin Dashboard (FIXED KEYBOARD ISSUE) ---
 const AdminDashboard = ({ user, area, logout }) => {
-  const [activeTab, setActiveTab] = useState('inbox'); // inbox, history, manage
+  const [activeTab, setActiveTab] = useState('inbox');
   const [successMsg, setSuccessMsg] = useState(null);
   
   // Data State
   const [pendingClaims, setPendingClaims] = useState([]);
-  const [allClaims, setAllClaims] = useState([]); // For History
+  const [allClaims, setAllClaims] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [usersList, setUsersList] = useState([]);
 
@@ -262,7 +262,6 @@ const AdminDashboard = ({ user, area, logout }) => {
     if (activeTab === 'history') {
         const q = query(collection(db, 'claims'), where('area', '==', area), orderBy('timestamp', 'desc'));
         return onSnapshot(q, (snap) => {
-            // Filter non-pending di client side
             const processed = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(item => item.status !== 'pending');
             setAllClaims(processed);
         });
@@ -278,7 +277,6 @@ const AdminDashboard = ({ user, area, logout }) => {
   }, [activeTab, user.role]);
 
   // --- ACTIONS ---
-
   const showSuccess = (msg) => {
       setSuccessMsg(msg);
       setTimeout(() => setSuccessMsg(null), 2000);
@@ -287,33 +285,21 @@ const AdminDashboard = ({ user, area, logout }) => {
   const processClaim = async (claim, isApproved) => {
     try {
         const adminNrp = user.nrp || 'Admin';
-        
         if (!isApproved) {
-            await updateDoc(doc(db, 'claims', claim.id), {
-                status: 'rejected',
-                processedAt: serverTimestamp(),
-                processedBy: adminNrp
-            });
-            showSuccess(`Permintaan ${claim.userName} ditolak.`);
+            await updateDoc(doc(db, 'claims', claim.id), { status: 'rejected', processedAt: serverTimestamp(), processedBy: adminNrp });
+            showSuccess(`Ditolak: ${claim.userName}`);
             return; 
         }
-
         await runTransaction(db, async (t) => {
             const invRef = doc(db, 'inventory', claim.inventoryId);
             const invDoc = await t.get(invRef);
             if (!invDoc.exists()) throw new Error("Barang dihapus!");
-            
             const currentStock = invDoc.data().warehouseStock || 0;
             if (currentStock <= 0) throw new Error("Stok habis!");
-
             t.update(invRef, { warehouseStock: currentStock - 1 });
-            t.update(doc(db, 'claims', claim.id), { 
-                status: 'approved', 
-                processedAt: serverTimestamp(), 
-                processedBy: adminNrp 
-            });
+            t.update(doc(db, 'claims', claim.id), { status: 'approved', processedAt: serverTimestamp(), processedBy: adminNrp });
         });
-        showSuccess(`Permintaan ${claim.userName} disetujui.`);
+        showSuccess(`Disetujui: ${claim.userName}`);
     } catch (e) { alert("Gagal: " + e.message); }
   };
 
@@ -327,7 +313,7 @@ const AdminDashboard = ({ user, area, logout }) => {
         } else {
             await addDoc(collection(db, 'inventory'), { name: newItemName, warehouseStock: parseInt(newItemStock), area, createdAt: serverTimestamp() });
         }
-        setNewItemName(''); setNewItemStock(''); showSuccess("Data Stok Disimpan");
+        setNewItemName(''); setNewItemStock(''); showSuccess("Stok Disimpan");
     } catch(err) { alert("Error: " + err.message); }
   };
 
@@ -339,19 +325,17 @@ const AdminDashboard = ({ user, area, logout }) => {
       } catch (e) { alert("Gagal tambah user"); }
   };
 
-  // --- VIEWS ---
-
-  const InboxView = () => (
+  // --- RENDER FUNCTIONS (Agar keyboard tidak close) ---
+  const renderInbox = () => (
       <div className="p-6 pb-28">
           <div className="flex justify-between items-center mb-6">
               <h3 className="font-bold text-slate-700 text-xl flex items-center gap-2"><Inbox size={20}/> Kotak Masuk</h3>
               <span className="bg-red-100 text-red-600 px-2 py-1 rounded-full text-xs font-bold">{pendingClaims.length} Pending</span>
           </div>
-
           {pendingClaims.length === 0 ? (
               <div className="text-center py-20 text-gray-400">
                   <Inbox size={48} className="mx-auto mb-2 opacity-20"/>
-                  <p>Tidak ada permintaan masuk.</p>
+                  <p>Tidak ada permintaan.</p>
               </div>
           ) : (
               <div className="space-y-4">
@@ -367,23 +351,15 @@ const AdminDashboard = ({ user, area, logout }) => {
                                       <p className="text-xs text-gray-400">{claim.userNrp}</p>
                                   </div>
                               </div>
-                              <span className="text-[10px] bg-gray-100 px-2 py-1 rounded text-gray-500 font-bold">
-                                  {formatDateTime(claim.timestamp).split(',')[1]}
-                              </span>
+                              <span className="text-[10px] bg-gray-100 px-2 py-1 rounded text-gray-500 font-bold">{formatDateTime(claim.timestamp).split(',')[1]}</span>
                           </div>
-                          
                           <div className="bg-slate-50 p-3 rounded-xl mb-4 flex items-center gap-3 border border-slate-100">
                               <Coffee size={18} className="text-orange-500"/>
                               <span className="text-sm font-bold text-slate-700">{claim.drinkName}</span>
                           </div>
-
                           <div className="grid grid-cols-2 gap-3">
-                              <button onClick={() => processClaim(claim, false)} className="py-2.5 rounded-xl border border-red-100 text-red-500 font-bold text-xs hover:bg-red-50 transition-colors">
-                                  Tolak
-                              </button>
-                              <button onClick={() => processClaim(claim, true)} className="py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs shadow-md shadow-indigo-200 hover:bg-indigo-700 transition-colors">
-                                  Setujui
-                              </button>
+                              <button onClick={() => processClaim(claim, false)} className="py-2.5 rounded-xl border border-red-100 text-red-500 font-bold text-xs hover:bg-red-50 transition-colors">Tolak</button>
+                              <button onClick={() => processClaim(claim, true)} className="py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs shadow-md shadow-indigo-200 hover:bg-indigo-700 transition-colors">Setujui</button>
                           </div>
                       </div>
                   ))}
@@ -392,8 +368,7 @@ const AdminDashboard = ({ user, area, logout }) => {
       </div>
   );
 
-  const HistoryView = () => {
-      // Filter Logic
+  const renderHistory = () => {
       const filteredClaims = allClaims.filter(item => {
           const matchName = item.userName.toLowerCase().includes(historySearch.toLowerCase());
           const matchStatus = historyFilter === 'all' ? true : item.status === historyFilter;
@@ -403,59 +378,41 @@ const AdminDashboard = ({ user, area, logout }) => {
       return (
         <div className="p-6 pb-28">
             <h3 className="font-bold text-slate-700 text-xl mb-4 flex items-center gap-2"><History size={20}/> Riwayat Proses</h3>
-            
-            {/* Search & Filter */}
             <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-4 space-y-3">
                 <div className="relative">
                     <Search size={16} className="absolute left-3 top-3 text-gray-400"/>
-                    <input 
-                        type="text" 
-                        placeholder="Cari nama karyawan..." 
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-indigo-400"
-                        value={historySearch}
-                        onChange={(e) => setHistorySearch(e.target.value)}
-                    />
+                    <input type="text" placeholder="Cari nama karyawan..." className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-indigo-400"
+                        value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} />
                 </div>
                 <div className="flex gap-2 overflow-x-auto pb-1">
                     {['all', 'approved', 'rejected'].map(status => (
-                        <button 
-                            key={status}
-                            onClick={() => setHistoryFilter(status)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize whitespace-nowrap border ${historyFilter === status ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-500 border-slate-200'}`}
-                        >
+                        <button key={status} onClick={() => setHistoryFilter(status)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize whitespace-nowrap border ${historyFilter === status ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-500 border-slate-200'}`}>
                             {status === 'all' ? 'Semua' : status === 'approved' ? 'Disetujui' : 'Ditolak'}
                         </button>
                     ))}
                 </div>
             </div>
-
             <div className="space-y-3">
                 {filteredClaims.map(claim => (
                     <div key={claim.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 opacity-80 hover:opacity-100 transition-opacity">
                         <div className="flex justify-between items-start">
-                            <div>
-                                <h4 className="font-bold text-slate-700 text-sm">{claim.userName}</h4>
-                                <p className="text-xs text-gray-400 mb-1">{claim.drinkName}</p>
-                            </div>
-                            <span className={`text-[10px] px-2 py-1 rounded font-bold capitalize ${claim.status === 'approved' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                                {claim.status === 'approved' ? 'Disetujui' : 'Ditolak'}
-                            </span>
+                            <div><h4 className="font-bold text-slate-700 text-sm">{claim.userName}</h4><p className="text-xs text-gray-400 mb-1">{claim.drinkName}</p></div>
+                            <span className={`text-[10px] px-2 py-1 rounded font-bold capitalize ${claim.status === 'approved' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>{claim.status === 'approved' ? 'Disetujui' : 'Ditolak'}</span>
                         </div>
                         <div className="border-t border-slate-50 mt-2 pt-2 flex justify-between items-center">
-                            <span className="text-[10px] text-gray-400 flex items-center gap-1"><UserCircle size={10}/> Admin: {claim.processedBy || '-'}</span>
+                            <span className="text-[10px] text-gray-400 flex items-center gap-1"><UserCircle size={10}/> {claim.processedBy || '-'}</span>
                             <span className="text-[10px] text-gray-400">{formatDateTime(claim.processedAt)}</span>
                         </div>
                     </div>
                 ))}
-                {filteredClaims.length === 0 && <p className="text-center text-gray-400 text-sm mt-8">Data tidak ditemukan.</p>}
             </div>
         </div>
       );
   };
 
-  const ManageView = () => (
+  const renderManage = () => (
       <div className="p-6 pb-28 space-y-8">
-          {/* Inventory Section */}
           <div>
             <h3 className="font-bold text-slate-700 text-lg mb-3 flex items-center gap-2"><Package size={18}/> Kelola Stok</h3>
             <div className="bg-white p-4 rounded-2xl shadow-sm border border-indigo-100 mb-4">
@@ -483,8 +440,6 @@ const AdminDashboard = ({ user, area, logout }) => {
                 ))}
             </div>
           </div>
-
-          {/* User Section */}
           {(user.role === 'general_admin' || user.role === 'admin_area') && (
               <div>
                  <h3 className="font-bold text-slate-700 text-lg mb-3 flex items-center gap-2"><Users size={18}/> Kelola User</h3>
@@ -514,34 +469,27 @@ const AdminDashboard = ({ user, area, logout }) => {
   return (
     <MobileWrapper className="bg-slate-50">
       <SuccessModal message={successMsg} onClose={() => setSuccessMsg(null)} />
-
-      {/* ADMIN HEADER */}
       <div className="bg-indigo-900 px-6 py-6 rounded-b-[2rem] shadow-lg sticky top-0 z-20 flex justify-between items-center text-white">
-         <div>
-             <h2 className="text-lg font-bold">Admin Panel</h2>
-             <p className="text-xs text-indigo-300 flex items-center gap-1"><MapPin size={10}/> {area}</p>
-         </div>
+         <div><h2 className="text-lg font-bold">Admin Panel</h2><p className="text-xs text-indigo-300 flex items-center gap-1"><MapPin size={10}/> {area}</p></div>
          <button onClick={logout} className="bg-white/20 p-2 rounded-full hover:bg-white/30"><LogOut size={16}/></button>
       </div>
-
+      
+      {/* ISI KONTEN (RENDER CALL) */}
       <div className="flex-1 overflow-y-auto h-full">
-          {activeTab === 'inbox' && <InboxView />}
-          {activeTab === 'history' && <HistoryView />}
-          {activeTab === 'manage' && <ManageView />}
+          {activeTab === 'inbox' && renderInbox()}
+          {activeTab === 'history' && renderHistory()}
+          {activeTab === 'manage' && renderManage()}
       </div>
 
-      {/* ADMIN BOTTOM NAVIGATION */}
       <div className="absolute bottom-0 w-full bg-white border-t border-slate-100 py-3 px-6 pb-6 rounded-t-2xl shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-30 flex justify-between items-center">
           <button onClick={() => setActiveTab('inbox')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'inbox' ? 'text-indigo-600 scale-105' : 'text-slate-400'}`}>
               <div className={`p-1.5 rounded-xl ${activeTab === 'inbox' ? 'bg-indigo-50' : 'bg-transparent'}`}><Inbox size={22} strokeWidth={activeTab === 'inbox' ? 2.5 : 2} /></div>
               <span className="text-[10px] font-bold">Inbox</span>
           </button>
-          
           <button onClick={() => setActiveTab('history')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'history' ? 'text-indigo-600 scale-105' : 'text-slate-400'}`}>
               <div className={`p-1.5 rounded-xl ${activeTab === 'history' ? 'bg-indigo-50' : 'bg-transparent'}`}><History size={22} strokeWidth={activeTab === 'history' ? 2.5 : 2} /></div>
               <span className="text-[10px] font-bold">Riwayat</span>
           </button>
-
           <button onClick={() => setActiveTab('manage')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'manage' ? 'text-indigo-600 scale-105' : 'text-slate-400'}`}>
               <div className={`p-1.5 rounded-xl ${activeTab === 'manage' ? 'bg-indigo-50' : 'bg-transparent'}`}><Briefcase size={22} strokeWidth={activeTab === 'manage' ? 2.5 : 2} /></div>
               <span className="text-[10px] font-bold">Kelola</span>
@@ -551,7 +499,7 @@ const AdminDashboard = ({ user, area, logout }) => {
   );
 };
 
-// --- 7. Employee Dashboard ---
+// --- 7. Employee Dashboard (FIXED KEYBOARD ISSUE) ---
 const EmployeeDashboard = ({ user, area, logout }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [menuItems, setMenuItems] = useState([]);
@@ -592,7 +540,7 @@ const EmployeeDashboard = ({ user, area, logout }) => {
     } catch (e) { alert("Gagal klaim: " + e.message); }
   };
 
-  const DashboardView = () => (
+  const renderDashboard = () => (
     <div className="p-6 pb-28">
          <div className={`p-5 rounded-3xl text-white shadow-xl mb-6 relative overflow-hidden ${todaysClaim ? 'bg-slate-800' : 'bg-gradient-to-r from-blue-600 to-indigo-600'}`}>
              <div className="relative z-10">
@@ -634,7 +582,7 @@ const EmployeeDashboard = ({ user, area, logout }) => {
     </div>
   );
 
-  const HistoryView = () => (
+  const renderHistory = () => (
       <div className="p-6 pb-28">
           <h3 className="font-bold text-slate-700 mb-4 text-xl">Riwayat Klaim</h3>
           <div className="space-y-3">
@@ -657,7 +605,7 @@ const EmployeeDashboard = ({ user, area, logout }) => {
       </div>
   );
 
-  const ProfileView = () => (
+  const renderProfile = () => (
       <div className="p-6 pb-28">
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 text-center mb-6">
               <div className="w-20 h-20 bg-slate-100 rounded-full mx-auto mb-4 flex items-center justify-center text-slate-400"><User size={40} /></div>
@@ -670,7 +618,7 @@ const EmployeeDashboard = ({ user, area, logout }) => {
                   <span className="flex items-center gap-3"><LogOut size={18}/> Keluar Akun</span><ArrowRight size={16} className="text-red-300"/>
               </button>
           </div>
-          <p className="text-center text-gray-300 text-xs mt-8">Versi Aplikasi 2.2.0</p>
+          <p className="text-center text-gray-300 text-xs mt-8">Versi Aplikasi 2.2.1</p>
       </div>
   );
 
@@ -681,11 +629,14 @@ const EmployeeDashboard = ({ user, area, logout }) => {
          <div><h2 className="text-lg font-bold text-slate-800">{activeTab === 'dashboard' ? 'Beranda' : activeTab === 'history' ? 'Riwayat' : 'Profil Saya'}</h2><p className="text-xs text-slate-400 flex items-center gap-1"><MapPin size={10}/> {area}</p></div>
          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-xs">{user.displayName.charAt(0)}</div>
       </div>
+      
+      {/* ISI KONTEN (RENDER CALL) */}
       <div className="flex-1 overflow-y-auto h-full">
-          {activeTab === 'dashboard' && <DashboardView />}
-          {activeTab === 'history' && <HistoryView />}
-          {activeTab === 'profile' && <ProfileView />}
+          {activeTab === 'dashboard' && renderDashboard()}
+          {activeTab === 'history' && renderHistory()}
+          {activeTab === 'profile' && renderProfile()}
       </div>
+
       <div className="absolute bottom-0 w-full bg-white border-t border-slate-100 py-3 px-6 pb-6 rounded-t-2xl shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-30 flex justify-between items-center">
           <button onClick={() => setActiveTab('dashboard')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'dashboard' ? 'text-blue-600 scale-105' : 'text-slate-400'}`}>
               <div className={`p-1.5 rounded-xl ${activeTab === 'dashboard' ? 'bg-blue-50' : 'bg-transparent'}`}><LayoutDashboard size={22} strokeWidth={activeTab === 'dashboard' ? 2.5 : 2} /></div>

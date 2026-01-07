@@ -10,7 +10,7 @@ import {
   LogOut, Package, MapPin, Clock, Shield, ArrowRight, Lock, 
   User, Edit, Trash2, UserPlus, Building2, WifiOff,
   LayoutDashboard, History, UserCircle, Search, Briefcase, 
-  Loader2, BarChart3, TrendingUp, Calendar
+  Loader2, BarChart3, TrendingUp
 } from 'lucide-react';
 
 // --- 1. Firebase Configuration ---
@@ -217,20 +217,16 @@ const AreaSelectionScreen = ({ user, onSelectArea, onLogout }) => {
   );
 };
 
-// --- 6. Admin Dashboard (REVISED: HISTORY & STATS ONLY) ---
+// --- 6. Admin Dashboard ---
 const AdminDashboard = ({ user, area, logout }) => {
-  const [activeTab, setActiveTab] = useState('history'); // history, stats, manage
+  const [activeTab, setActiveTab] = useState('history'); 
   const [successMsg, setSuccessMsg] = useState(null);
   
-  // Data State
   const [allClaims, setAllClaims] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [usersList, setUsersList] = useState([]);
-
-  // Search & Filter State
   const [historySearch, setHistorySearch] = useState('');
 
-  // Input State (Manage)
   const [newItemName, setNewItemName] = useState('');
   const [newItemStock, setNewItemStock] = useState('');
   const [editingItem, setEditingItem] = useState(null); 
@@ -239,13 +235,19 @@ const AdminDashboard = ({ user, area, logout }) => {
   const [newUserRole, setNewUserRole] = useState('user');
   const [newUserName, setNewUserName] = useState('');
 
-  // 1. Fetch Inventory
   useEffect(() => {
-    const q = query(collection(db, 'inventory'), where('area', '==', area), orderBy('createdAt', 'desc'));
-    return onSnapshot(q, (snap) => setInventory(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const q = query(collection(db, 'inventory'), where('area', '==', area));
+    return onSnapshot(q, (snap) => {
+        const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        items.sort((a, b) => {
+            const timeA = a.createdAt?.seconds || Date.now()/1000;
+            const timeB = b.createdAt?.seconds || Date.now()/1000;
+            return timeB - timeA; 
+        });
+        setInventory(items);
+    });
   }, [area]);
 
-  // 2. Fetch All Claims (History)
   useEffect(() => {
       const q = query(collection(db, 'claims'), where('area', '==', area), orderBy('timestamp', 'desc'));
       return onSnapshot(q, (snap) => {
@@ -253,7 +255,6 @@ const AdminDashboard = ({ user, area, logout }) => {
       });
   }, [area]);
 
-  // 3. Fetch Users
   useEffect(() => {
     if(activeTab === 'manage' && user.role !== 'user') {
         const q = user.role === 'general_admin' ? query(collection(db, 'users'), orderBy('displayName')) : query(collection(db, 'users'), where('role', '==', 'user'));
@@ -261,7 +262,6 @@ const AdminDashboard = ({ user, area, logout }) => {
     }
   }, [activeTab, user.role]);
 
-  // --- ACTIONS ---
   const showSuccess = (msg) => {
       setSuccessMsg(msg);
       setTimeout(() => setSuccessMsg(null), 2000);
@@ -289,19 +289,13 @@ const AdminDashboard = ({ user, area, logout }) => {
       } catch (e) { alert("Gagal tambah user"); }
   };
 
-  // --- STATS LOGIC ---
   const statsData = useMemo(() => {
-      // 1. Total Claim
       const totalClaims = allClaims.length;
-      
-      // 2. Count per Drink
       const drinkCounts = {};
       allClaims.forEach(claim => {
           const drink = claim.drinkName;
           drinkCounts[drink] = (drinkCounts[drink] || 0) + 1;
       });
-      
-      // Convert to array for sorting
       const chartData = Object.keys(drinkCounts).map(drink => ({
           name: drink,
           count: drinkCounts[drink],
@@ -311,13 +305,11 @@ const AdminDashboard = ({ user, area, logout }) => {
       return { totalClaims, chartData };
   }, [allClaims]);
 
-  // --- RENDER FUNCTIONS ---
-
+  // --- RENDER ADMIN ---
   const renderHistory = () => {
       const filteredClaims = allClaims.filter(item => {
           return item.userName.toLowerCase().includes(historySearch.toLowerCase());
       });
-
       return (
         <div className="p-6 pb-28 w-full">
             <h3 className="font-bold text-slate-700 text-xl mb-4 flex items-center gap-2"><History size={20}/> Riwayat Klaim</h3>
@@ -337,9 +329,7 @@ const AdminDashboard = ({ user, area, logout }) => {
                             <p className="text-xs text-gray-400 mb-1">{claim.drinkName}</p>
                             <span className="text-[10px] text-gray-400">{formatDateTime(claim.timestamp)}</span>
                         </div>
-                        <span className="text-[10px] px-2 py-1 rounded font-bold bg-green-100 text-green-600 flex items-center gap-1">
-                            <CheckCircle size={10}/> Sukses
-                        </span>
+                        <span className="text-[10px] px-2 py-1 rounded font-bold bg-green-100 text-green-600 flex items-center gap-1"><CheckCircle size={10}/> Sukses</span>
                     </div>
                 ))}
             </div>
@@ -350,8 +340,6 @@ const AdminDashboard = ({ user, area, logout }) => {
   const renderStats = () => (
       <div className="p-6 pb-28 w-full">
           <h3 className="font-bold text-slate-700 text-xl mb-6 flex items-center gap-2"><BarChart3 size={20}/> Statistik Area</h3>
-          
-          {/* Summary Cards */}
           <div className="grid grid-cols-2 gap-4 mb-6">
               <div className="bg-indigo-600 p-5 rounded-2xl text-white shadow-lg shadow-indigo-200">
                   <p className="text-indigo-200 text-xs font-bold mb-1">Total Klaim</p>
@@ -361,25 +349,16 @@ const AdminDashboard = ({ user, area, logout }) => {
               <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
                   <p className="text-gray-400 text-xs font-bold mb-1">Minuman Favorit</p>
                   <h2 className="text-xl font-bold text-slate-800 line-clamp-2">{statsData.chartData[0]?.name || '-'}</h2>
-                  <p className="text-[10px] text-green-600 font-bold mt-2 flex items-center gap-1">
-                      <TrendingUp size={12}/> {statsData.chartData[0]?.count || 0} Klaim
-                  </p>
+                  <p className="text-[10px] text-green-600 font-bold mt-2 flex items-center gap-1"><TrendingUp size={12}/> {statsData.chartData[0]?.count || 0} Klaim</p>
               </div>
           </div>
-
-          {/* Simple Chart */}
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
               <h4 className="font-bold text-slate-700 mb-4 text-sm">Distribusi Minuman</h4>
               <div className="space-y-4">
                   {statsData.chartData.map((data, index) => (
                       <div key={index}>
-                          <div className="flex justify-between text-xs mb-1">
-                              <span className="font-bold text-slate-600">{data.name}</span>
-                              <span className="text-slate-400">{data.count} ({data.percent}%)</span>
-                          </div>
-                          <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                              <div className="bg-indigo-500 h-2.5 rounded-full" style={{ width: `${data.percent}%` }}></div>
-                          </div>
+                          <div className="flex justify-between text-xs mb-1"><span className="font-bold text-slate-600">{data.name}</span><span className="text-slate-400">{data.count} ({data.percent}%)</span></div>
+                          <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden"><div className="bg-indigo-500 h-2.5 rounded-full" style={{ width: `${data.percent}%` }}></div></div>
                       </div>
                   ))}
                   {statsData.chartData.length === 0 && <p className="text-center text-xs text-gray-400">Belum ada data statistik.</p>}
@@ -450,14 +429,11 @@ const AdminDashboard = ({ user, area, logout }) => {
          <div><h2 className="text-lg font-bold">Admin Panel</h2><p className="text-xs text-indigo-300 flex items-center gap-1"><MapPin size={10}/> {area}</p></div>
          <button onClick={logout} className="bg-white/20 p-2 rounded-full hover:bg-white/30"><LogOut size={16}/></button>
       </div>
-      
-      {/* ISI KONTEN */}
       <div className="flex-1 overflow-y-auto h-full w-full">
           {activeTab === 'history' && renderHistory()}
           {activeTab === 'stats' && renderStats()}
           {activeTab === 'manage' && renderManage()}
       </div>
-
       <div className="absolute bottom-0 w-full bg-white border-t border-slate-100 py-3 px-6 pb-6 rounded-t-2xl shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-30 flex justify-between items-center">
           <button onClick={() => setActiveTab('history')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'history' ? 'text-indigo-600 scale-105' : 'text-slate-400'}`}>
               <div className={`p-1.5 rounded-xl ${activeTab === 'history' ? 'bg-indigo-50' : 'bg-transparent'}`}><History size={22} strokeWidth={activeTab === 'history' ? 2.5 : 2} /></div>
@@ -476,7 +452,7 @@ const AdminDashboard = ({ user, area, logout }) => {
   );
 };
 
-// --- 7. Employee Dashboard (NO APPROVAL) ---
+// --- 7. Employee Dashboard ---
 const EmployeeDashboard = ({ user, area, logout }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [menuItems, setMenuItems] = useState([]);
@@ -490,7 +466,6 @@ const EmployeeDashboard = ({ user, area, logout }) => {
     return onSnapshot(q, (snap) => setMenuItems(snap.docs.map(d => ({id: d.id, ...d.data()}))));
   }, [area]);
 
-  // Cek Status Klaim (Cek 'completed', bukan pending)
   useEffect(() => {
     const q = query(collection(db, 'claims'), where('userId', '==', user.uid), where('date', '==', getTodayString()));
     return onSnapshot(q, (snap) => {
@@ -506,6 +481,23 @@ const EmployeeDashboard = ({ user, area, logout }) => {
       }
   }, [activeTab, user]);
 
+  // --- STATISTICS USER LOGIC ---
+  const userStats = useMemo(() => {
+      const total = historyList.length;
+      const counts = {};
+      historyList.forEach(item => {
+          counts[item.drinkName] = (counts[item.drinkName] || 0) + 1;
+      });
+      // Convert ke array dan sort
+      const breakdown = Object.keys(counts).map(name => ({
+          name,
+          count: counts[name],
+          percent: total > 0 ? Math.round((counts[name] / total) * 100) : 0
+      })).sort((a, b) => b.count - a.count);
+
+      return { total, breakdown };
+  }, [historyList]);
+
   const handleOrder = async (item) => {
     if (todaysClaim) return;
     if (isClaiming) return;
@@ -514,7 +506,6 @@ const EmployeeDashboard = ({ user, area, logout }) => {
     setIsClaiming(true);
     try {
         await runTransaction(db, async (t) => {
-             // 1. Get terbaru stok
              const invRef = doc(db, 'inventory', item.id);
              const invDoc = await t.get(invRef);
              if (!invDoc.exists()) throw new Error("Item tidak ditemukan!");
@@ -522,7 +513,6 @@ const EmployeeDashboard = ({ user, area, logout }) => {
              
              if (currentStock <= 0) throw new Error("Stok habis saat diproses!");
 
-             // 2. Create Claim Doc
              const newClaimRef = doc(collection(db, 'claims'));
              t.set(newClaimRef, {
                 userId: user.uid, userName: user.displayName, userNrp: user.nrp || '-',
@@ -530,7 +520,6 @@ const EmployeeDashboard = ({ user, area, logout }) => {
                 status: 'completed', location: area, area: area, timestamp: serverTimestamp()
              });
 
-             // 3. Kurangi Stok
              t.update(invRef, { warehouseStock: currentStock - 1 });
         });
         
@@ -588,9 +577,39 @@ const EmployeeDashboard = ({ user, area, logout }) => {
 
   const renderHistory = () => (
       <div className="p-6 pb-28 w-full">
-          <h3 className="font-bold text-slate-700 mb-4 text-xl">Riwayat Klaim</h3>
+          <h3 className="font-bold text-slate-700 mb-4 text-xl">Riwayat & Statistik</h3>
+          
+          {/* STATS SECTION START */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-6">
+              <div className="flex items-center gap-4 mb-4 border-b border-slate-50 pb-4">
+                  <div className="bg-blue-50 p-3 rounded-full text-blue-600">
+                      <Coffee size={24} />
+                  </div>
+                  <div>
+                      <p className="text-xs text-gray-400 font-bold uppercase">Total Minuman</p>
+                      <h2 className="text-2xl font-black text-slate-800">{userStats.total} <span className="text-xs font-normal text-gray-400">Gelas</span></h2>
+                  </div>
+              </div>
+              <div className="space-y-3">
+                  {userStats.breakdown.slice(0, 5).map((item, idx) => (
+                      <div key={idx}>
+                          <div className="flex justify-between text-xs mb-1">
+                              <span className="font-bold text-slate-600">{item.name}</span>
+                              <span className="text-slate-400">{item.count} ({item.percent}%)</span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                              <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${item.percent}%` }}></div>
+                          </div>
+                      </div>
+                  ))}
+                  {userStats.total === 0 && <p className="text-center text-xs text-gray-400">Belum ada statistik.</p>}
+              </div>
+          </div>
+          {/* STATS SECTION END */}
+
+          <h4 className="font-bold text-slate-700 mb-3 text-sm">Daftar Riwayat</h4>
           <div className="space-y-3">
-              {historyList.length === 0 && <p className="text-gray-400 text-center mt-10">Belum ada riwayat.</p>}
+              {historyList.length === 0 && <p className="text-gray-400 text-center mt-4">Belum ada riwayat.</p>}
               {historyList.map(item => (
                   <div key={item.id} onClick={() => {if(item.date === getTodayString()) setShowCoupon(true)}} className={`bg-white p-4 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden ${item.date === getTodayString() ? 'cursor-pointer ring-1 ring-blue-400' : ''}`}>
                       <div className="flex justify-between items-start mb-2">
@@ -621,7 +640,7 @@ const EmployeeDashboard = ({ user, area, logout }) => {
                   <span className="flex items-center gap-3"><LogOut size={18}/> Keluar Akun</span><ArrowRight size={16} className="text-red-300"/>
               </button>
           </div>
-          <p className="text-center text-gray-300 text-xs mt-8">Versi Aplikasi 2.3.0 (No Approval)</p>
+          <p className="text-center text-gray-300 text-xs mt-8">Versi Aplikasi 2.5.0</p>
       </div>
   );
 

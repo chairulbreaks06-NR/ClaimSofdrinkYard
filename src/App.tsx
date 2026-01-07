@@ -46,7 +46,8 @@ import {
   Ticket
 } from 'lucide-react';
 
-// Your web app's Firebase configuration
+// --- Firebase Configuration ---
+// Updated with specific project credentials
 const firebaseConfig = {
   apiKey: "AIzaSyDVNvKd6x4Iw_BIvP6OFRB9cSrXXIW5SD4",
   authDomain: "claimlunchmkt.firebaseapp.com",
@@ -55,6 +56,11 @@ const firebaseConfig = {
   messagingSenderId: "502120224174",
   appId: "1:502120224174:web:d8f3b330ccdb31a825a43f"
 };
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
 
 // --- Helpers ---
 const formatDate = (date) => date.toISOString().split('T')[0];

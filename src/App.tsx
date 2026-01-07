@@ -3,12 +3,12 @@ import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, collection, doc, addDoc, updateDoc, 
   query, where, onSnapshot, serverTimestamp, orderBy, 
-  runTransaction, deleteDoc, getDocs, setDoc 
+  runTransaction, deleteDoc, getDocs 
 } from 'firebase/firestore';
 import { 
-  Coffee, ClipboardList, Users, Plus, CheckCircle, XCircle, Calendar, 
-  LogOut, Package, MapPin, Home, Clock, Shield, ArrowRight, Lock, 
-  User, Ticket, Edit, Trash2, UserPlus, Building2
+  Coffee, ClipboardList, Users, CheckCircle, Package, 
+  MapPin, LogOut, Shield, ArrowRight, Lock, 
+  User, Ticket, Edit, Trash2, UserPlus, Building2, BadgeId
 } from 'lucide-react';
 
 // --- 1. Firebase Configuration ---
@@ -73,7 +73,7 @@ const CouponModal = ({ data, onClose }) => {
 // --- 4. Login & Setup Screens ---
 
 const LoginScreen = ({ onLoginSuccess }) => {
-  const [email, setEmail] = useState('');
+  const [idNumber, setIdNumber] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -84,26 +84,30 @@ const LoginScreen = ({ onLoginSuccess }) => {
     setError('');
 
     try {
-      // 1. Cek Master Login (Hardcoded untuk Initial Setup)
-      if (email === 'master@gsi.co.id' && password === 'Master123!') {
+      // 1. Cek Master Login (Hardcoded ID 9999)
+      if (idNumber === '9999' && password === 'Master123!') {
         onLoginSuccess({
            uid: 'master-admin',
-           email: 'master@gsi.co.id',
+           idNumber: '9999',
            role: 'general_admin',
            displayName: 'Master Admin'
         });
         return;
       }
 
-      // 2. Cek Database Users
-      const q = query(collection(db, 'users'), where('email', '==', email), where('password', '==', password));
+      // 2. Cek Database Users berdasarkan ID Number
+      const q = query(
+          collection(db, 'users'), 
+          where('idNumber', '==', idNumber), 
+          where('password', '==', password)
+      );
       const querySnapshot = await getDocs(q);
 
       if (!querySnapshot.empty) {
         const userData = querySnapshot.docs[0].data();
         onLoginSuccess({ ...userData, uid: querySnapshot.docs[0].id });
       } else {
-        setError('Email atau Password salah!');
+        setError('ID atau Password salah!');
         setLoading(false);
       }
     } catch (err) {
@@ -120,25 +124,38 @@ const LoginScreen = ({ onLoginSuccess }) => {
           <Coffee size={48} className="text-blue-300" />
         </div>
         <h1 className="text-3xl font-bold text-white text-center mb-2">SiapMinum GSI</h1>
-        <p className="text-blue-200 mb-8 text-center text-sm opacity-80">Portal Layanan Umum</p>
+        <p className="text-blue-200 mb-8 text-center text-sm opacity-80">Login via ID Karyawan</p>
 
         <form onSubmit={handleLogin} className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="relative">
-            <User className="absolute left-4 top-3.5 text-gray-400" size={20} />
-            <input type="text" placeholder="Email" className="w-full bg-white/10 text-white placeholder:text-gray-400 border border-white/20 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-blue-400"
-              value={email} onChange={(e) => setEmail(e.target.value)} />
+            <BadgeId className="absolute left-4 top-3.5 text-gray-400" size={20} />
+            <input 
+              type="text" 
+              placeholder="ID / NIK Karyawan" 
+              className="w-full bg-white/10 text-white placeholder:text-gray-400 border border-white/20 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-blue-400"
+              value={idNumber} 
+              onChange={(e) => setIdNumber(e.target.value)} 
+            />
           </div>
           <div className="relative">
             <Lock className="absolute left-4 top-3.5 text-gray-400" size={20} />
-            <input type="password" placeholder="Password" className="w-full bg-white/10 text-white placeholder:text-gray-400 border border-white/20 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-blue-400"
-              value={password} onChange={(e) => setPassword(e.target.value)} />
+            <input 
+              type="password" 
+              placeholder="Password" 
+              className="w-full bg-white/10 text-white placeholder:text-gray-400 border border-white/20 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-blue-400"
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)} 
+            />
           </div>
           {error && <div className="bg-red-500/20 border border-red-500/50 p-3 rounded-xl"><p className="text-red-200 text-xs text-center font-bold">{error}</p></div>}
           <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white p-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 active:scale-95 hover:bg-blue-500 transition-all">
             {loading ? 'Memuat...' : 'Masuk'} <ArrowRight size={20} />
           </button>
         </form>
-        <p className="text-center text-white/20 text-xs mt-8">Gunakan akun Master untuk setup awal.</p>
+        <div className="text-center mt-8">
+            <p className="text-white/30 text-xs">Setup Awal Gunakan:</p>
+            <p className="text-white/50 text-xs font-mono mt-1">ID: 9999 | Pass: Master123!</p>
+        </div>
       </div>
     </MobileWrapper>
   );
@@ -178,20 +195,20 @@ const AreaSelectionScreen = ({ user, onSelectArea, onLogout }) => {
   );
 };
 
-// --- 5. Admin Dashboard (Updated) ---
+// --- 5. Admin Dashboard ---
 const AdminDashboard = ({ user, area, logout }) => {
-  const [activeTab, setActiveTab] = useState('approvals'); // approvals, inventory, users
+  const [activeTab, setActiveTab] = useState('approvals');
   const [inventory, setInventory] = useState([]);
   const [pendingClaims, setPendingClaims] = useState([]);
   
   // State Input Stock
   const [newItemName, setNewItemName] = useState('');
   const [newItemStock, setNewItemStock] = useState('');
-  const [editingItem, setEditingItem] = useState(null); // Jika sedang edit
+  const [editingItem, setEditingItem] = useState(null);
 
-  // State Input User
+  // State Input User (Updated for ID)
   const [usersList, setUsersList] = useState([]);
-  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserId, setNewUserId] = useState('');
   const [newUserPass, setNewUserPass] = useState('');
   const [newUserRole, setNewUserRole] = useState('user');
   const [newUserName, setNewUserName] = useState('');
@@ -211,28 +228,24 @@ const AdminDashboard = ({ user, area, logout }) => {
   // 3. Fetch Users (Only if General Admin)
   useEffect(() => {
     if(user.role === 'general_admin') {
-        const q = query(collection(db, 'users'));
+        const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
         return onSnapshot(q, (snap) => setUsersList(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     }
   }, [user.role]);
 
   // --- ACTIONS ---
 
-  // A. Inventory Management
   const handleSaveInventory = async (e) => {
     e.preventDefault();
     if (!newItemName || !newItemStock) return;
-    
     try {
         if (editingItem) {
-            // Edit Mode
             await updateDoc(doc(db, 'inventory', editingItem.id), {
                 name: newItemName,
                 warehouseStock: parseInt(newItemStock)
             });
             setEditingItem(null);
         } else {
-            // Add Mode
             await addDoc(collection(db, 'inventory'), {
                 name: newItemName,
                 warehouseStock: parseInt(newItemStock),
@@ -241,86 +254,69 @@ const AdminDashboard = ({ user, area, logout }) => {
             });
         }
         setNewItemName(''); setNewItemStock('');
-        alert("Data berhasil disimpan!");
-    } catch(err) {
-        alert("Gagal simpan: " + err.message);
-    }
+        alert("Data stok tersimpan!");
+    } catch(err) { alert("Error: " + err.message); }
   };
 
   const startEdit = (item) => {
       setEditingItem(item);
       setNewItemName(item.name);
       setNewItemStock(item.warehouseStock);
-      setActiveTab('inventory'); // Ensure tab is open
-      window.scrollTo(0,0); // Scroll to top form
+      setActiveTab('inventory');
   };
 
   const handleDeleteInventory = async (id) => {
       if(confirm("Hapus item ini?")) await deleteDoc(doc(db, 'inventory', id));
   };
 
-  // B. Claim Processing (FIXED)
   const processClaim = async (claim, isApproved) => {
     try {
         const claimRef = doc(db, 'claims', claim.id);
-        
         await runTransaction(db, async (t) => {
             if (isApproved) {
-                // Pastikan dokumen stok masih ada
                 const invRef = doc(db, 'inventory', claim.inventoryId);
                 const invDoc = await t.get(invRef);
-                
-                if (!invDoc.exists()) {
-                    throw new Error("Master stok barang ini sudah dihapus.");
-                }
-
-                // Cek stok cukup
+                if (!invDoc.exists()) throw new Error("Stok barang dihapus.");
                 const currentStock = invDoc.data().warehouseStock || 0;
-                /* Optional: if (currentStock <= 0) throw new Error("Stok habis saat ingin diapprove."); */
-
-                // Update Stok
                 t.update(invRef, { warehouseStock: Math.max(0, currentStock - 1) });
-                
-                // Update Klaim
-                t.update(claimRef, { 
-                    status: 'approved', 
-                    processedAt: serverTimestamp(), 
-                    processedBy: user.email 
-                });
+                t.update(claimRef, { status: 'approved', processedAt: serverTimestamp(), processedBy: user.idNumber });
             } else {
-                // Reject
-                t.update(claimRef, { 
-                    status: 'rejected', 
-                    processedAt: serverTimestamp(), 
-                    processedBy: user.email 
-                });
+                t.update(claimRef, { status: 'rejected', processedAt: serverTimestamp(), processedBy: user.idNumber });
             }
         });
-    } catch (e) {
-        console.error("Transaction failed: ", e);
-        alert("Gagal memproses: " + e.message);
-    }
+    } catch (e) { alert("Gagal memproses: " + e.message); }
   };
 
-  // C. User Management
+  // ADD USER WITH ID NUMBER
   const handleAddUser = async (e) => {
       e.preventDefault();
       try {
+          // Check if ID exists
+          const checkQ = query(collection(db, 'users'), where('idNumber', '==', newUserId));
+          const checkSnap = await getDocs(checkQ);
+          if(!checkSnap.empty) {
+              alert("ID Karyawan ini sudah terdaftar!");
+              return;
+          }
+
           await addDoc(collection(db, 'users'), {
-              email: newUserEmail,
+              idNumber: newUserId,
               password: newUserPass,
               displayName: newUserName,
               role: newUserRole,
               createdAt: serverTimestamp()
           });
-          setNewUserEmail(''); setNewUserPass(''); setNewUserName('');
+          setNewUserId(''); setNewUserPass(''); setNewUserName('');
           alert("User berhasil ditambahkan");
-      } catch (e) { alert("Gagal tambah user"); }
+      } catch (e) { alert("Gagal tambah user: " + e.message); }
+  };
+
+  const handleDeleteUser = async (id) => {
+    if(confirm("Hapus user ini?")) await deleteDoc(doc(db, 'users', id));
   };
 
   return (
     <MobileWrapper>
-      {/* Header */}
       <div className="bg-indigo-900 text-white p-6 pt-10 rounded-b-[2.5rem] shadow-lg flex-shrink-0">
         <div className="flex justify-between items-center mb-4">
           <div>
@@ -349,8 +345,6 @@ const AdminDashboard = ({ user, area, logout }) => {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 pb-20 bg-slate-50">
-        
-        {/* --- TAB APPROVALS --- */}
         {activeTab === 'approvals' && (
           <div className="space-y-3">
             <h3 className="font-bold text-slate-700">Klaim Menunggu ({pendingClaims.length})</h3>
@@ -374,7 +368,6 @@ const AdminDashboard = ({ user, area, logout }) => {
           </div>
         )}
 
-        {/* --- TAB INVENTORY --- */}
         {activeTab === 'inventory' && (
           <div className="space-y-4">
              <div className="bg-white p-4 rounded-2xl shadow-sm border border-indigo-100">
@@ -392,7 +385,6 @@ const AdminDashboard = ({ user, area, logout }) => {
                     </div>
                 </form>
              </div>
-
              <div className="space-y-2">
                 {inventory.map(item => (
                     <div key={item.id} className="bg-white p-3 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center">
@@ -413,18 +405,22 @@ const AdminDashboard = ({ user, area, logout }) => {
           </div>
         )}
 
-        {/* --- TAB USER MANAGEMENT (General Admin Only) --- */}
+        {/* --- TAB USER MANAGEMENT (ID BASED) --- */}
         {activeTab === 'users' && user.role === 'general_admin' && (
              <div className="space-y-4">
                  <div className="bg-white p-4 rounded-2xl shadow-sm border border-purple-100">
-                    <h3 className="font-bold text-sm mb-3 text-slate-700 flex items-center gap-2"><UserPlus size={16}/> Tambah User</h3>
+                    <h3 className="font-bold text-sm mb-3 text-slate-700 flex items-center gap-2"><UserPlus size={16}/> Tambah User Baru</h3>
                     <form onSubmit={handleAddUser} className="space-y-2">
                         <input required placeholder="Nama Lengkap" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" 
                             value={newUserName} onChange={e=>setNewUserName(e.target.value)} />
-                        <input required type="email" placeholder="Email" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" 
-                            value={newUserEmail} onChange={e=>setNewUserEmail(e.target.value)} />
+                        
+                        {/* ID KARYAWAN INPUT */}
+                        <input required type="text" placeholder="ID Karyawan / NIK (Cth: 2024001)" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900 font-mono" 
+                            value={newUserId} onChange={e=>setNewUserId(e.target.value)} />
+                        
                         <input required type="text" placeholder="Password" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" 
                             value={newUserPass} onChange={e=>setNewUserPass(e.target.value)} />
+                        
                         <select className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900"
                             value={newUserRole} onChange={e=>setNewUserRole(e.target.value)}>
                             <option value="user">User (Karyawan)</option>
@@ -438,24 +434,26 @@ const AdminDashboard = ({ user, area, logout }) => {
                  <div className="space-y-2">
                      <h3 className="font-bold text-xs text-gray-500 uppercase px-2">Daftar User</h3>
                      {usersList.map(u => (
-                         <div key={u.id} className="bg-white p-3 rounded-xl border border-slate-100 flex justify-between items-center">
+                         <div key={u.id} className="bg-white p-3 rounded-xl border border-slate-100 flex justify-between items-center group">
                              <div>
                                  <div className="font-bold text-sm text-slate-700">{u.displayName}</div>
-                                 <div className="text-[10px] text-gray-400">{u.email}</div>
+                                 <div className="text-[10px] text-gray-400 font-mono">ID: {u.idNumber}</div>
                              </div>
-                             <span className="text-[10px] font-bold bg-gray-100 px-2 py-1 rounded text-gray-600">{u.role}</span>
+                             <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold bg-gray-100 px-2 py-1 rounded text-gray-600">{u.role}</span>
+                                <button onClick={() => handleDeleteUser(u.id)} className="p-1.5 bg-red-50 text-red-500 rounded"><Trash2 size={12}/></button>
+                             </div>
                          </div>
                      ))}
                  </div>
              </div>
         )}
-
       </div>
     </MobileWrapper>
   );
 };
 
-// --- 6. Employee Dashboard (Updated) ---
+// --- 6. Employee Dashboard ---
 const EmployeeDashboard = ({ user, area, logout }) => {
   const [menuItems, setMenuItems] = useState([]);
   const [todaysClaim, setTodaysClaim] = useState(null);
@@ -489,7 +487,7 @@ const EmployeeDashboard = ({ user, area, logout }) => {
             date: getTodayString(),
             status: 'pending',
             location: area,
-            area: area, // Important for admin filtering
+            area: area,
             timestamp: serverTimestamp()
         };
         const docRef = await addDoc(collection(db, 'claims'), claimData);
@@ -572,21 +570,10 @@ const App = () => {
     setSelectedArea(null);
   };
 
-  // 1. Belum Login
-  if (!user) {
-    return <LoginScreen onLoginSuccess={setUser} />;
-  }
-
-  // 2. Sudah Login, Belum Pilih Area
-  if (!selectedArea) {
-    return <AreaSelectionScreen user={user} onSelectArea={setSelectedArea} onLogout={handleLogout} />;
-  }
-
-  // 3. Masuk Dashboard Sesuai Role
-  if (user.role === 'admin_area' || user.role === 'general_admin') {
-      return <AdminDashboard user={user} area={selectedArea} logout={handleLogout} />;
-  }
-
+  if (!user) return <LoginScreen onLoginSuccess={setUser} />;
+  if (!selectedArea) return <AreaSelectionScreen user={user} onSelectArea={setSelectedArea} onLogout={handleLogout} />;
+  if (user.role === 'admin_area' || user.role === 'general_admin') return <AdminDashboard user={user} area={selectedArea} logout={handleLogout} />;
+  
   return <EmployeeDashboard user={user} area={selectedArea} logout={handleLogout} />;
 };
 

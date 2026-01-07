@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, collection, doc, addDoc, updateDoc, 
@@ -9,7 +9,8 @@ import {
   Coffee, ClipboardList, Users, CheckCircle, Ticket, 
   LogOut, Package, MapPin, Clock, Shield, ArrowRight, Lock, 
   User, Edit, Trash2, UserPlus, Building2, WifiOff,
-  LayoutDashboard, History, UserCircle, Search, Inbox, Briefcase, Loader2
+  LayoutDashboard, History, UserCircle, Search, Briefcase, 
+  Loader2, BarChart3, TrendingUp, Calendar
 } from 'lucide-react';
 
 // --- 1. Firebase Configuration ---
@@ -49,7 +50,6 @@ const formatDateTime = (timestamp) => {
 
 // --- 3. Shared Components ---
 
-// Modal Sukses Approve/Reject
 const SuccessModal = ({ message, onClose }) => {
     if (!message) return null;
     return (
@@ -113,26 +113,22 @@ const CouponModal = ({ data, onClose }) => {
         
         <div className="p-6 pt-6 text-center bg-white relative">
             <h2 className="text-2xl font-black text-slate-800 mb-2 leading-tight">{data.drinkName}</h2>
-            <div className={`border-2 border-dashed rounded-xl p-3 mb-6 ${data.status === 'approved' ? 'border-green-400 bg-green-50' : data.status === 'rejected' ? 'border-red-400 bg-red-50' : 'border-yellow-400 bg-yellow-50'}`}>
-                <div className={`text-xl font-black uppercase tracking-widest ${data.status === 'approved' ? 'text-green-600' : data.status === 'rejected' ? 'text-red-600' : 'text-yellow-600'}`}>
-                  {data.status === 'pending' ? 'MENUNGGU' : data.status === 'approved' ? 'DISETUJUI' : 'DITOLAK'}
+            <div className="border-2 border-dashed rounded-xl p-3 mb-6 border-green-400 bg-green-50">
+                <div className="text-xl font-black uppercase tracking-widest text-green-600">
+                  BERHASIL KLAIM
                 </div>
             </div>
             <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg mb-6">
                <div className="text-left">
-                  <p className="text-[10px] text-gray-400 uppercase font-bold">Waktu Request</p>
+                  <p className="text-[10px] text-gray-400 uppercase font-bold">Waktu Klaim</p>
                   <p className="text-xs font-bold text-slate-700 flex items-center gap-1">
                     <Clock size={12}/> {formatDateTime(data.timestamp)}
                   </p>
                </div>
-               {data.processedAt && (
-                   <div className="text-right border-l pl-3">
-                      <p className="text-[10px] text-gray-400 uppercase font-bold">Diproses</p>
-                      <p className="text-xs font-bold text-slate-700">
-                        {new Date(data.processedAt.toDate()).toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'})}
-                      </p>
-                   </div>
-               )}
+               <div className="text-right border-l pl-3">
+                  <p className="text-[10px] text-gray-400 uppercase font-bold">Status</p>
+                  <p className="text-xs font-bold text-green-600 flex items-center justify-end gap-1"><CheckCircle size={12}/> Selesai</p>
+               </div>
             </div>
             <button onClick={onClose} className="w-full bg-slate-800 text-white font-bold py-3.5 rounded-xl shadow-lg active:scale-95 transition-transform">Tutup</button>
         </div>
@@ -221,21 +217,18 @@ const AreaSelectionScreen = ({ user, onSelectArea, onLogout }) => {
   );
 };
 
-// --- 6. Admin Dashboard ---
+// --- 6. Admin Dashboard (REVISED: HISTORY & STATS ONLY) ---
 const AdminDashboard = ({ user, area, logout }) => {
-  const [activeTab, setActiveTab] = useState('inbox');
+  const [activeTab, setActiveTab] = useState('history'); // history, stats, manage
   const [successMsg, setSuccessMsg] = useState(null);
-  const [processingId, setProcessingId] = useState(null); // Loading state per item
   
   // Data State
-  const [pendingClaims, setPendingClaims] = useState([]);
   const [allClaims, setAllClaims] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [usersList, setUsersList] = useState([]);
 
   // Search & Filter State
   const [historySearch, setHistorySearch] = useState('');
-  const [historyFilter, setHistoryFilter] = useState('all');
 
   // Input State (Manage)
   const [newItemName, setNewItemName] = useState('');
@@ -252,24 +245,15 @@ const AdminDashboard = ({ user, area, logout }) => {
     return onSnapshot(q, (snap) => setInventory(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
   }, [area]);
 
-  // 2. Fetch Pending (Inbox)
+  // 2. Fetch All Claims (History)
   useEffect(() => {
-    const q = query(collection(db, 'claims'), where('status', '==', 'pending'), where('area', '==', area), orderBy('timestamp', 'desc'));
-    return onSnapshot(q, (snap) => setPendingClaims(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+      const q = query(collection(db, 'claims'), where('area', '==', area), orderBy('timestamp', 'desc'));
+      return onSnapshot(q, (snap) => {
+          setAllClaims(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      });
   }, [area]);
 
-  // 3. Fetch History (Non-Pending)
-  useEffect(() => {
-    if (activeTab === 'history') {
-        const q = query(collection(db, 'claims'), where('area', '==', area), orderBy('timestamp', 'desc'));
-        return onSnapshot(q, (snap) => {
-            const processed = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(item => item.status !== 'pending');
-            setAllClaims(processed);
-        });
-    }
-  }, [activeTab, area]);
-
-  // 4. Fetch Users
+  // 3. Fetch Users
   useEffect(() => {
     if(activeTab === 'manage' && user.role !== 'user') {
         const q = user.role === 'general_admin' ? query(collection(db, 'users'), orderBy('displayName')) : query(collection(db, 'users'), where('role', '==', 'user'));
@@ -281,37 +265,6 @@ const AdminDashboard = ({ user, area, logout }) => {
   const showSuccess = (msg) => {
       setSuccessMsg(msg);
       setTimeout(() => setSuccessMsg(null), 2000);
-  };
-
-  const processClaim = async (claim, isApproved) => {
-    if (processingId) return; // Prevent double clicks
-    setProcessingId(claim.id);
-    
-    try {
-        const adminNrp = user.nrp || 'Admin';
-        
-        if (!isApproved) {
-            await updateDoc(doc(db, 'claims', claim.id), { status: 'rejected', processedAt: serverTimestamp(), processedBy: adminNrp });
-            showSuccess(`Ditolak: ${claim.userName}`);
-        } else {
-            await runTransaction(db, async (t) => {
-                const invRef = doc(db, 'inventory', claim.inventoryId);
-                const invDoc = await t.get(invRef);
-                if (!invDoc.exists()) throw new Error("Barang dihapus!");
-                
-                const currentStock = invDoc.data().warehouseStock || 0;
-                if (currentStock <= 0) throw new Error("Stok habis!");
-                
-                t.update(invRef, { warehouseStock: currentStock - 1 });
-                t.update(doc(db, 'claims', claim.id), { status: 'approved', processedAt: serverTimestamp(), processedBy: adminNrp });
-            });
-            showSuccess(`Disetujui: ${claim.userName}`);
-        }
-    } catch (e) { 
-        alert("Gagal: " + e.message); 
-    } finally {
-        setProcessingId(null);
-    }
   };
 
   const handleSaveInventory = async (e) => {
@@ -336,101 +289,104 @@ const AdminDashboard = ({ user, area, logout }) => {
       } catch (e) { alert("Gagal tambah user"); }
   };
 
+  // --- STATS LOGIC ---
+  const statsData = useMemo(() => {
+      // 1. Total Claim
+      const totalClaims = allClaims.length;
+      
+      // 2. Count per Drink
+      const drinkCounts = {};
+      allClaims.forEach(claim => {
+          const drink = claim.drinkName;
+          drinkCounts[drink] = (drinkCounts[drink] || 0) + 1;
+      });
+      
+      // Convert to array for sorting
+      const chartData = Object.keys(drinkCounts).map(drink => ({
+          name: drink,
+          count: drinkCounts[drink],
+          percent: totalClaims > 0 ? Math.round((drinkCounts[drink] / totalClaims) * 100) : 0
+      })).sort((a,b) => b.count - a.count);
+
+      return { totalClaims, chartData };
+  }, [allClaims]);
+
   // --- RENDER FUNCTIONS ---
-  const renderInbox = () => (
-      <div className="p-6 pb-28 w-full">
-          <div className="flex justify-between items-center mb-6">
-              <h3 className="font-bold text-slate-700 text-xl flex items-center gap-2"><Inbox size={20}/> Kotak Masuk</h3>
-              <span className="bg-red-100 text-red-600 px-2 py-1 rounded-full text-xs font-bold">{pendingClaims.length} Pending</span>
-          </div>
-          {pendingClaims.length === 0 ? (
-              <div className="text-center py-20 text-gray-400">
-                  <Inbox size={48} className="mx-auto mb-2 opacity-20"/>
-                  <p>Tidak ada permintaan.</p>
-              </div>
-          ) : (
-              <div className="space-y-4">
-                  {pendingClaims.map(claim => (
-                      <div key={claim.id} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 relative">
-                          <div className="flex justify-between items-start mb-3">
-                              <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600 font-bold flex-shrink-0">
-                                      {claim.userName.charAt(0)}
-                                  </div>
-                                  <div>
-                                      <h4 className="font-bold text-slate-800">{claim.userName}</h4>
-                                      <p className="text-xs text-gray-400">{claim.userNrp}</p>
-                                  </div>
-                              </div>
-                              <span className="text-[10px] bg-gray-100 px-2 py-1 rounded text-gray-500 font-bold">{formatDateTime(claim.timestamp).split(',')[1]}</span>
-                          </div>
-                          <div className="bg-slate-50 p-3 rounded-xl mb-4 flex items-center gap-3 border border-slate-100">
-                              <Coffee size={18} className="text-orange-500"/>
-                              <span className="text-sm font-bold text-slate-700">{claim.drinkName}</span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-3">
-                              <button 
-                                disabled={processingId === claim.id}
-                                onClick={() => processClaim(claim, false)} 
-                                className="py-2.5 rounded-xl border border-red-100 text-red-500 font-bold text-xs hover:bg-red-50 transition-colors disabled:opacity-50">
-                                {processingId === claim.id ? <Loader2 className="animate-spin mx-auto" size={16}/> : 'Tolak'}
-                              </button>
-                              <button 
-                                disabled={processingId === claim.id}
-                                onClick={() => processClaim(claim, true)} 
-                                className="py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs shadow-md shadow-indigo-200 hover:bg-indigo-700 transition-colors disabled:bg-indigo-400">
-                                {processingId === claim.id ? <Loader2 className="animate-spin mx-auto" size={16}/> : 'Setujui'}
-                              </button>
-                          </div>
-                      </div>
-                  ))}
-              </div>
-          )}
-      </div>
-  );
 
   const renderHistory = () => {
       const filteredClaims = allClaims.filter(item => {
-          const matchName = item.userName.toLowerCase().includes(historySearch.toLowerCase());
-          const matchStatus = historyFilter === 'all' ? true : item.status === historyFilter;
-          return matchName && matchStatus;
+          return item.userName.toLowerCase().includes(historySearch.toLowerCase());
       });
 
       return (
         <div className="p-6 pb-28 w-full">
-            <h3 className="font-bold text-slate-700 text-xl mb-4 flex items-center gap-2"><History size={20}/> Riwayat Proses</h3>
+            <h3 className="font-bold text-slate-700 text-xl mb-4 flex items-center gap-2"><History size={20}/> Riwayat Klaim</h3>
             <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-4 space-y-3">
                 <div className="relative">
                     <Search size={16} className="absolute left-3 top-3 text-gray-400"/>
                     <input type="text" placeholder="Cari nama karyawan..." className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-10 pr-4 text-sm text-gray-900 focus:outline-none focus:border-indigo-400"
                         value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} />
                 </div>
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                    {['all', 'approved', 'rejected'].map(status => (
-                        <button key={status} onClick={() => setHistoryFilter(status)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize whitespace-nowrap border ${historyFilter === status ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-500 border-slate-200'}`}>
-                            {status === 'all' ? 'Semua' : status === 'approved' ? 'Disetujui' : 'Ditolak'}
-                        </button>
-                    ))}
-                </div>
             </div>
             <div className="space-y-3">
+                {filteredClaims.length === 0 && <p className="text-center text-gray-400 py-10">Tidak ada riwayat.</p>}
                 {filteredClaims.map(claim => (
-                    <div key={claim.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 opacity-80 hover:opacity-100 transition-opacity">
-                        <div className="flex justify-between items-start">
-                            <div><h4 className="font-bold text-slate-700 text-sm">{claim.userName}</h4><p className="text-xs text-gray-400 mb-1">{claim.drinkName}</p></div>
-                            <span className={`text-[10px] px-2 py-1 rounded font-bold capitalize ${claim.status === 'approved' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>{claim.status === 'approved' ? 'Disetujui' : 'Ditolak'}</span>
+                    <div key={claim.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center">
+                        <div>
+                            <h4 className="font-bold text-slate-700 text-sm">{claim.userName}</h4>
+                            <p className="text-xs text-gray-400 mb-1">{claim.drinkName}</p>
+                            <span className="text-[10px] text-gray-400">{formatDateTime(claim.timestamp)}</span>
                         </div>
-                        <div className="border-t border-slate-50 mt-2 pt-2 flex justify-between items-center">
-                            <span className="text-[10px] text-gray-400 flex items-center gap-1"><UserCircle size={10}/> {claim.processedBy || '-'}</span>
-                            <span className="text-[10px] text-gray-400">{formatDateTime(claim.processedAt)}</span>
-                        </div>
+                        <span className="text-[10px] px-2 py-1 rounded font-bold bg-green-100 text-green-600 flex items-center gap-1">
+                            <CheckCircle size={10}/> Sukses
+                        </span>
                     </div>
                 ))}
             </div>
         </div>
       );
   };
+
+  const renderStats = () => (
+      <div className="p-6 pb-28 w-full">
+          <h3 className="font-bold text-slate-700 text-xl mb-6 flex items-center gap-2"><BarChart3 size={20}/> Statistik Area</h3>
+          
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-indigo-600 p-5 rounded-2xl text-white shadow-lg shadow-indigo-200">
+                  <p className="text-indigo-200 text-xs font-bold mb-1">Total Klaim</p>
+                  <h2 className="text-3xl font-black">{statsData.totalClaims}</h2>
+                  <p className="text-[10px] opacity-80 mt-2">Semua Waktu</p>
+              </div>
+              <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
+                  <p className="text-gray-400 text-xs font-bold mb-1">Minuman Favorit</p>
+                  <h2 className="text-xl font-bold text-slate-800 line-clamp-2">{statsData.chartData[0]?.name || '-'}</h2>
+                  <p className="text-[10px] text-green-600 font-bold mt-2 flex items-center gap-1">
+                      <TrendingUp size={12}/> {statsData.chartData[0]?.count || 0} Klaim
+                  </p>
+              </div>
+          </div>
+
+          {/* Simple Chart */}
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+              <h4 className="font-bold text-slate-700 mb-4 text-sm">Distribusi Minuman</h4>
+              <div className="space-y-4">
+                  {statsData.chartData.map((data, index) => (
+                      <div key={index}>
+                          <div className="flex justify-between text-xs mb-1">
+                              <span className="font-bold text-slate-600">{data.name}</span>
+                              <span className="text-slate-400">{data.count} ({data.percent}%)</span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                              <div className="bg-indigo-500 h-2.5 rounded-full" style={{ width: `${data.percent}%` }}></div>
+                          </div>
+                      </div>
+                  ))}
+                  {statsData.chartData.length === 0 && <p className="text-center text-xs text-gray-400">Belum ada data statistik.</p>}
+              </div>
+          </div>
+      </div>
+  );
 
   const renderManage = () => (
       <div className="p-6 pb-28 space-y-8 w-full">
@@ -495,21 +451,21 @@ const AdminDashboard = ({ user, area, logout }) => {
          <button onClick={logout} className="bg-white/20 p-2 rounded-full hover:bg-white/30"><LogOut size={16}/></button>
       </div>
       
-      {/* ISI KONTEN (RENDER CALL) */}
+      {/* ISI KONTEN */}
       <div className="flex-1 overflow-y-auto h-full w-full">
-          {activeTab === 'inbox' && renderInbox()}
           {activeTab === 'history' && renderHistory()}
+          {activeTab === 'stats' && renderStats()}
           {activeTab === 'manage' && renderManage()}
       </div>
 
       <div className="absolute bottom-0 w-full bg-white border-t border-slate-100 py-3 px-6 pb-6 rounded-t-2xl shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-30 flex justify-between items-center">
-          <button onClick={() => setActiveTab('inbox')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'inbox' ? 'text-indigo-600 scale-105' : 'text-slate-400'}`}>
-              <div className={`p-1.5 rounded-xl ${activeTab === 'inbox' ? 'bg-indigo-50' : 'bg-transparent'}`}><Inbox size={22} strokeWidth={activeTab === 'inbox' ? 2.5 : 2} /></div>
-              <span className="text-[10px] font-bold">Inbox</span>
-          </button>
           <button onClick={() => setActiveTab('history')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'history' ? 'text-indigo-600 scale-105' : 'text-slate-400'}`}>
               <div className={`p-1.5 rounded-xl ${activeTab === 'history' ? 'bg-indigo-50' : 'bg-transparent'}`}><History size={22} strokeWidth={activeTab === 'history' ? 2.5 : 2} /></div>
               <span className="text-[10px] font-bold">Riwayat</span>
+          </button>
+          <button onClick={() => setActiveTab('stats')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'stats' ? 'text-indigo-600 scale-105' : 'text-slate-400'}`}>
+              <div className={`p-1.5 rounded-xl ${activeTab === 'stats' ? 'bg-indigo-50' : 'bg-transparent'}`}><BarChart3 size={22} strokeWidth={activeTab === 'stats' ? 2.5 : 2} /></div>
+              <span className="text-[10px] font-bold">Statistik</span>
           </button>
           <button onClick={() => setActiveTab('manage')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'manage' ? 'text-indigo-600 scale-105' : 'text-slate-400'}`}>
               <div className={`p-1.5 rounded-xl ${activeTab === 'manage' ? 'bg-indigo-50' : 'bg-transparent'}`}><Briefcase size={22} strokeWidth={activeTab === 'manage' ? 2.5 : 2} /></div>
@@ -520,22 +476,23 @@ const AdminDashboard = ({ user, area, logout }) => {
   );
 };
 
-// --- 7. Employee Dashboard ---
+// --- 7. Employee Dashboard (NO APPROVAL) ---
 const EmployeeDashboard = ({ user, area, logout }) => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [menuItems, setMenuItems] = useState([]);
   const [todaysClaim, setTodaysClaim] = useState(null);
   const [showCoupon, setShowCoupon] = useState(false);
   const [historyList, setHistoryList] = useState([]);
-  const [isClaiming, setIsClaiming] = useState(false); // Loading state for claiming
+  const [isClaiming, setIsClaiming] = useState(false); 
 
   useEffect(() => {
     const q = query(collection(db, 'inventory'), where('area', '==', area), orderBy('name'));
     return onSnapshot(q, (snap) => setMenuItems(snap.docs.map(d => ({id: d.id, ...d.data()}))));
   }, [area]);
 
+  // Cek Status Klaim (Cek 'completed', bukan pending)
   useEffect(() => {
-    const q = query(collection(db, 'claims'), where('userId', '==', user.uid), where('date', '==', getTodayString()), where('status', '!=', 'rejected'));
+    const q = query(collection(db, 'claims'), where('userId', '==', user.uid), where('date', '==', getTodayString()));
     return onSnapshot(q, (snap) => {
       if (!snap.empty) setTodaysClaim({ id: snap.docs[0].id, ...snap.docs[0].data() });
       else setTodaysClaim(null);
@@ -551,16 +508,32 @@ const EmployeeDashboard = ({ user, area, logout }) => {
 
   const handleOrder = async (item) => {
     if (todaysClaim) return;
-    if (isClaiming) return; // Prevent double clicks
+    if (isClaiming) return;
     if (item.warehouseStock <= 0) { alert("Stok Habis!"); return; }
     
     setIsClaiming(true);
     try {
-        await addDoc(collection(db, 'claims'), {
-            userId: user.uid, userName: user.displayName, userNrp: user.nrp || '-',
-            inventoryId: item.id, drinkName: item.name, date: getTodayString(),
-            status: 'pending', location: area, area: area, timestamp: serverTimestamp()
+        await runTransaction(db, async (t) => {
+             // 1. Get terbaru stok
+             const invRef = doc(db, 'inventory', item.id);
+             const invDoc = await t.get(invRef);
+             if (!invDoc.exists()) throw new Error("Item tidak ditemukan!");
+             const currentStock = invDoc.data().warehouseStock;
+             
+             if (currentStock <= 0) throw new Error("Stok habis saat diproses!");
+
+             // 2. Create Claim Doc
+             const newClaimRef = doc(collection(db, 'claims'));
+             t.set(newClaimRef, {
+                userId: user.uid, userName: user.displayName, userNrp: user.nrp || '-',
+                inventoryId: item.id, drinkName: item.name, date: getTodayString(),
+                status: 'completed', location: area, area: area, timestamp: serverTimestamp()
+             });
+
+             // 3. Kurangi Stok
+             t.update(invRef, { warehouseStock: currentStock - 1 });
         });
+        
         setShowCoupon(true);
     } catch (e) { 
         alert("Gagal klaim: " + e.message); 
@@ -575,8 +548,8 @@ const EmployeeDashboard = ({ user, area, logout }) => {
              <div className="relative z-10">
                  <p className="text-xs opacity-80 mb-1">Status Hari Ini</p>
                  <h3 className="text-2xl font-bold flex items-center gap-2">
-                     {todaysClaim ? (todaysClaim.status === 'pending' ? 'Menunggu Approval' : 'Siap Diambil') : 'Belum Klaim'}
-                     {todaysClaim && todaysClaim.status === 'approved' && <CheckCircle size={20} className="text-green-400"/>}
+                     {todaysClaim ? 'Berhasil Klaim' : 'Belum Klaim'}
+                     {todaysClaim && <CheckCircle size={20} className="text-green-400"/>}
                  </h3>
                  {todaysClaim && (
                      <button onClick={()=>setShowCoupon(true)} className="mt-3 bg-white/20 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-white/30 transition-all">
@@ -625,10 +598,9 @@ const EmployeeDashboard = ({ user, area, logout }) => {
                           <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-1 rounded-full">{item.date}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                          <div className={`text-xs font-bold px-2 py-1 rounded flex items-center gap-1 ${item.status === 'approved' ? 'bg-green-100 text-green-600' : item.status === 'rejected' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600'}`}>
-                              {item.status === 'approved' ? <CheckCircle size={12}/> : item.status === 'rejected' ? <WifiOff size={12}/> : <Clock size={12}/>}
-                              {item.status === 'approved' ? 'Disetujui' : item.status === 'rejected' ? 'Ditolak' : 'Menunggu'}
-                          </div>
+                           <div className="text-xs font-bold px-2 py-1 rounded flex items-center gap-1 bg-green-100 text-green-600">
+                              <CheckCircle size={12}/> Berhasil
+                           </div>
                       </div>
                   </div>
               ))}
@@ -649,7 +621,7 @@ const EmployeeDashboard = ({ user, area, logout }) => {
                   <span className="flex items-center gap-3"><LogOut size={18}/> Keluar Akun</span><ArrowRight size={16} className="text-red-300"/>
               </button>
           </div>
-          <p className="text-center text-gray-300 text-xs mt-8">Versi Aplikasi 2.2.3</p>
+          <p className="text-center text-gray-300 text-xs mt-8">Versi Aplikasi 2.3.0 (No Approval)</p>
       </div>
   );
 
@@ -661,7 +633,6 @@ const EmployeeDashboard = ({ user, area, logout }) => {
          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">{user.displayName.charAt(0)}</div>
       </div>
       
-      {/* ISI KONTEN (RENDER CALL) */}
       <div className="flex-1 overflow-y-auto h-full w-full">
           {activeTab === 'dashboard' && renderDashboard()}
           {activeTab === 'history' && renderHistory()}

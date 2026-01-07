@@ -175,7 +175,7 @@ const CouponModal = ({ data, onClose }) => {
   );
 };
 
-// --- 4. Login Screen (UPDATED LOGO LINK) ---
+// --- 4. Login Screen (UPDATED LOGO) ---
 const LoginScreen = ({ onLoginSuccess }) => {
   const [nrp, setNrp] = useState('');
   const [password, setPassword] = useState('');
@@ -204,10 +204,10 @@ const LoginScreen = ({ onLoginSuccess }) => {
     <MobileWrapper className="bg-gradient-to-br from-slate-900 to-indigo-950">
       <div className="flex-1 flex flex-col justify-center px-8 relative z-10 w-full overflow-y-auto">
         
-        {/* LOGO SECTION - Menggunakan link raw yang benar */}
+        {/* LOGO SECTION - Menggantikan Icon Kopi dan Judul Text */}
         <div className="flex justify-center mb-6">
             <img 
-                src="https://github.com/chairulbreaks06-NR/ClaimSofdrinkYard/blob/main/logo%20Claim%20Sofdrink%20(1).png" 
+                src="https://github.com/chairulbreaks06-NR/ClaimSofdrinkYard/blob/main/logo%20Claim%20Sofdrink%20(1).png?raw=true" 
                 alt="Logo Claim Softdrink"
                 className="w-auto h-40 object-contain drop-shadow-2xl animate-in zoom-in duration-500"
             />

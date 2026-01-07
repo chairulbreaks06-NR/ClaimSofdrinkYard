@@ -3,12 +3,12 @@ import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, collection, doc, addDoc, updateDoc, 
   query, where, onSnapshot, serverTimestamp, orderBy, 
-  runTransaction, deleteDoc, getDocs 
+  runTransaction, deleteDoc, getDocs, enableIndexedDbPersistence 
 } from 'firebase/firestore';
 import { 
   Coffee, ClipboardList, Users, CheckCircle, Ticket, 
   LogOut, Package, MapPin, Clock, Shield, ArrowRight, Lock, 
-  User, Edit, Trash2, UserPlus, Building2
+  User, Edit, Trash2, UserPlus, Building2, Wifi, WifiOff
 } from 'lucide-react';
 
 // --- 1. Firebase Configuration ---
@@ -24,6 +24,19 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// --- AKTIFKAN OFFLINE PERSISTENCE (Agar data tersimpan saat sinyal hilang & sync saat online) ---
+try {
+  enableIndexedDbPersistence(db).catch((err) => {
+    if (err.code === 'failed-precondition') {
+      console.log('Persistence failed: Multiple tabs open');
+    } else if (err.code === 'unimplemented') {
+      console.log('Persistence not supported by browser');
+    }
+  });
+} catch (e) {
+  console.log("Persistence already enabled or error:", e);
+}
+
 // --- 2. Helpers & Constants ---
 const formatDate = (date) => date.toISOString().split('T')[0];
 const getTodayString = () => formatDate(new Date());
@@ -33,8 +46,8 @@ const YARDS = ['Yard Cakung', 'Yard Sukapura', 'Yard Jababeka'];
 // Helper untuk format Jam dan Tanggal Indonesia
 const formatDateTime = (timestamp) => {
   if (!timestamp) return '-';
-  // Handle Firebase Timestamp or standard Date
-  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  // Handle Firebase Timestamp or standard Date (untuk offline data yg belum punya timestamp server)
+  const date = timestamp.toDate ? timestamp.toDate() : new Date(); 
   
   return new Intl.DateTimeFormat('id-ID', {
     day: 'numeric', month: 'long', year: 'numeric',
@@ -44,15 +57,42 @@ const formatDateTime = (timestamp) => {
 
 // --- 3. Shared Components ---
 
+// Indikator Status Online/Offline
+const ConnectionStatus = () => {
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+    useEffect(() => {
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
+
+    if (isOnline) return null; // Sembunyikan jika online
+
+    return (
+        <div className="bg-red-500 text-white text-[10px] font-bold text-center py-1 absolute top-0 w-full z-50 flex items-center justify-center gap-1">
+            <WifiOff size={12} /> KONEKSI TERPUTUS - Mode Offline (Data akan disinkronkan nanti)
+        </div>
+    );
+};
+
 const MobileWrapper = ({ children, className = "" }) => (
   <div className="min-h-screen bg-gray-900 flex justify-center items-center font-sans">
     <div className={`w-full max-w-md h-[100dvh] bg-gray-50 flex flex-col relative overflow-hidden shadow-2xl md:rounded-3xl ${className}`}>
+      <ConnectionStatus />
       {children}
     </div>
   </div>
 );
 
-// --- MODAL KUPON (UPDATED: Tambah Tanggal & Jam) ---
+// --- MODAL KUPON ---
 const CouponModal = ({ data, onClose }) => {
   if (!data) return null;
   return (
@@ -72,7 +112,6 @@ const CouponModal = ({ data, onClose }) => {
         
         {/* Body Tiket */}
         <div className="p-6 pt-6 text-center bg-white relative">
-            {/* Lubang Tiket Dekorasi */}
             <div className="absolute -top-3 -left-3 w-6 h-6 bg-gray-900 rounded-full"></div>
             <div className="absolute -top-3 -right-3 w-6 h-6 bg-gray-900 rounded-full"></div>
 
@@ -86,7 +125,7 @@ const CouponModal = ({ data, onClose }) => {
                 </div>
             </div>
 
-            {/* INFO TANGGAL & JAM (NEW) */}
+            {/* INFO TANGGAL & JAM */}
             <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg mb-6">
                <div className="text-left">
                   <p className="text-[10px] text-gray-400 uppercase font-bold">Waktu Request</p>
@@ -137,6 +176,7 @@ const LoginScreen = ({ onLoginSuccess }) => {
         return;
       }
 
+      // Login menggunakan getDocs (sekali panggil), tidak perlu realtime untuk login
       const q = query(collection(db, 'users'), where('nrp', '==', nrp), where('password', '==', password));
       const querySnapshot = await getDocs(q);
 
@@ -219,7 +259,7 @@ const AreaSelectionScreen = ({ user, onSelectArea, onLogout }) => {
   );
 };
 
-// --- 5. Admin Dashboard (FIXED & UPDATED) ---
+// --- 5. Admin Dashboard (REALTIME & ROBUST) ---
 const AdminDashboard = ({ user, area, logout }) => {
   const [activeTab, setActiveTab] = useState('approvals'); 
   const [inventory, setInventory] = useState([]);
@@ -237,19 +277,20 @@ const AdminDashboard = ({ user, area, logout }) => {
   const [newUserRole, setNewUserRole] = useState('user');
   const [newUserName, setNewUserName] = useState('');
 
-  // 1. Fetch Inventory per Area
+  // 1. Fetch Inventory (Realtime Listener)
   useEffect(() => {
     const q = query(collection(db, 'inventory'), where('area', '==', area), orderBy('createdAt', 'desc'));
+    // onSnapshot memastikan setiap perubahan di server langsung masuk ke sini
     return onSnapshot(q, (snap) => setInventory(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
   }, [area]);
 
-  // 2. Fetch Pending Claims per Area
+  // 2. Fetch Pending Claims (Realtime Listener)
   useEffect(() => {
     const q = query(collection(db, 'claims'), where('status', '==', 'pending'), where('area', '==', area), orderBy('timestamp', 'desc'));
     return onSnapshot(q, (snap) => setPendingClaims(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
   }, [area]);
 
-  // 3. Fetch Users
+  // 3. Fetch Users (Realtime Listener)
   useEffect(() => {
     const shouldFetchUsers = user.role === 'general_admin' || user.role === 'admin_area';
     if(shouldFetchUsers) {
@@ -284,7 +325,7 @@ const AdminDashboard = ({ user, area, logout }) => {
             });
         }
         setNewItemName(''); setNewItemStock('');
-        alert("Data berhasil disimpan!");
+        // Tidak perlu alert, data akan muncul otomatis karena onSnapshot
     } catch(err) {
         alert("Gagal simpan: " + err.message);
     }
@@ -302,24 +343,23 @@ const AdminDashboard = ({ user, area, logout }) => {
       if(confirm("Hapus item ini?")) await deleteDoc(doc(db, 'inventory', id));
   };
 
-  // --- LOGIC APPROVAL YANG DIPERBAIKI ---
+  // --- LOGIC APPROVAL (REALTIME SAFE) ---
   const processClaim = async (claim, isApproved) => {
     try {
-        const adminNrp = user.nrp || user.email || 'Admin'; // Fallback jika NRP kosong
+        const adminNrp = user.nrp || user.email || 'Admin';
 
         if (!isApproved) {
-            // JIKA DITOLAK: Gunakan updateDoc biasa (lebih stabil daripada Transaction)
+            // REJECT: Update langsung
             await updateDoc(doc(db, 'claims', claim.id), {
                 status: 'rejected',
                 processedAt: serverTimestamp(),
                 processedBy: adminNrp
             });
-            return; // Selesai
+            return; 
         }
 
-        // JIKA DITERIMA: Gunakan Transaction untuk Stok
+        // APPROVE: Gunakan Transaction (Aman saat banyak request bersamaan)
         await runTransaction(db, async (t) => {
-            // 1. Cek ketersediaan Inventory
             const invRef = doc(db, 'inventory', claim.inventoryId);
             const invDoc = await t.get(invRef);
             
@@ -329,15 +369,14 @@ const AdminDashboard = ({ user, area, logout }) => {
 
             const currentStock = invDoc.data().warehouseStock || 0;
             
-            // 2. Cek apakah stok cukup
             if (currentStock <= 0) {
                 throw new Error("Stok barang habis! Tidak bisa approve.");
             }
 
-            // 3. Update Stok (Kurangi 1)
+            // Kurangi Stok
             t.update(invRef, { warehouseStock: currentStock - 1 });
             
-            // 4. Update Status Klaim
+            // Update Klaim
             const claimRef = doc(db, 'claims', claim.id);
             t.update(claimRef, { 
                 status: 'approved', 
@@ -366,7 +405,6 @@ const AdminDashboard = ({ user, area, logout }) => {
               createdAt: serverTimestamp()
           });
           setNewUserNrp(''); setNewUserPass(''); setNewUserName('');
-          alert("User berhasil ditambahkan");
       } catch (e) { alert("Gagal tambah user"); }
   };
 
@@ -535,17 +573,19 @@ const AdminDashboard = ({ user, area, logout }) => {
   );
 };
 
-// --- 6. Employee Dashboard ---
+// --- 6. Employee Dashboard (REALTIME & ROBUST) ---
 const EmployeeDashboard = ({ user, area, logout }) => {
   const [menuItems, setMenuItems] = useState([]);
   const [todaysClaim, setTodaysClaim] = useState(null);
   const [showCoupon, setShowCoupon] = useState(false);
   
+  // Realtime Menu
   useEffect(() => {
     const q = query(collection(db, 'inventory'), where('area', '==', area), orderBy('name'));
     return onSnapshot(q, (snap) => setMenuItems(snap.docs.map(d => ({id: d.id, ...d.data()}))));
   }, [area]);
 
+  // Realtime Status Klaim
   useEffect(() => {
     const q = query(collection(db, 'claims'), where('userId', '==', user.uid), where('date', '==', getTodayString()), where('status', '!=', 'rejected'));
     return onSnapshot(q, (snap) => {
@@ -572,7 +612,7 @@ const EmployeeDashboard = ({ user, area, logout }) => {
             timestamp: serverTimestamp()
         };
         const docRef = await addDoc(collection(db, 'claims'), claimData);
-        setTodaysClaim({ id: docRef.id, ...claimData });
+        // Tidak perlu setTodaysClaim manual karena onSnapshot akan mendeteksi perubahan ini
         setShowCoupon(true);
     } catch (e) { alert("Gagal klaim: " + e.message); }
   };

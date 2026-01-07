@@ -175,7 +175,7 @@ const CouponModal = ({ data, onClose }) => {
   );
 };
 
-// --- 4. Login Screen ---
+// --- 4. Login Screen (UPDATED LOGO) ---
 const LoginScreen = ({ onLoginSuccess }) => {
   const [nrp, setNrp] = useState('');
   const [password, setPassword] = useState('');
@@ -203,11 +203,18 @@ const LoginScreen = ({ onLoginSuccess }) => {
   return (
     <MobileWrapper className="bg-gradient-to-br from-slate-900 to-indigo-950">
       <div className="flex-1 flex flex-col justify-center px-8 relative z-10 w-full overflow-y-auto">
-        <div className="bg-white/10 backdrop-blur-md w-24 h-24 rounded-3xl flex items-center justify-center mb-6 shadow-xl mx-auto border border-white/10 shrink-0">
-          <Coffee size={48} className="text-blue-300" />
+        
+        {/* LOGO SECTION - Menggantikan Icon Kopi dan Judul Text */}
+        <div className="flex justify-center mb-6">
+            <img 
+                src="https://github.com/chairulbreaks06-NR/ClaimSofdrinkYard/blob/main/logo%20Claim%20Sofdrink%20(1).png?raw=true" 
+                alt="Logo Claim Softdrink"
+                className="w-auto h-40 object-contain drop-shadow-2xl animate-in zoom-in duration-500"
+            />
         </div>
-        <h1 className="text-3xl font-bold text-white text-center mb-2">SiapMinum GSI</h1>
+        
         <p className="text-blue-200 mb-8 text-center text-sm opacity-80">Portal Layanan Karyawan</p>
+        
         <form onSubmit={handleLogin} className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 w-full">
           <div className="relative">
             <User className="absolute left-4 top-3.5 text-gray-400" size={20} />
@@ -772,7 +779,7 @@ const EmployeeDashboard = ({ user, area, logout }) => {
                   <span className="flex items-center gap-3"><LogOut size={18}/> Keluar Akun</span><ArrowRight size={16} className="text-red-300"/>
               </button>
           </div>
-          <p className="text-center text-gray-300 text-xs mt-8">Versi Aplikasi 2.8.0 FixLayout</p>
+          <p className="text-center text-gray-300 text-xs mt-8">Versi Aplikasi 2.9.0 Logo Update</p>
       </div>
   );
 

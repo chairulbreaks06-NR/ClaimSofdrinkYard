@@ -10,8 +10,10 @@ import {
   LogOut, Package, MapPin, Clock, Shield, ArrowRight, Lock, 
   User, Edit, Trash2, UserPlus, Building2, WifiOff,
   LayoutDashboard, History, UserCircle, Search, Briefcase, 
-  Loader2, BarChart3, TrendingUp, CalendarDays
+  Loader2, BarChart3, TrendingUp, CalendarDays, FileDown, Calendar
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 // --- 1. Firebase Configuration ---
 const firebaseConfig = {
@@ -231,10 +233,14 @@ const AdminDashboard = ({ user, area, logout }) => {
   const [inventory, setInventory] = useState([]);
   const [usersList, setUsersList] = useState([]);
   const [historySearch, setHistorySearch] = useState('');
+  
+  // Filter Tanggal
+  const [startDate, setStartDate] = useState(getTodayString());
+  const [endDate, setEndDate] = useState(getTodayString());
 
   const [newItemName, setNewItemName] = useState('');
   const [newItemStock, setNewItemStock] = useState('');
-  const [newItemDay, setNewItemDay] = useState('Setiap Hari'); // STATE HARI BARU
+  const [newItemDay, setNewItemDay] = useState('Setiap Hari');
   const [editingItem, setEditingItem] = useState(null); 
   const [newUserNrp, setNewUserNrp] = useState('');
   const [newUserPass, setNewUserPass] = useState('');
@@ -273,24 +279,44 @@ const AdminDashboard = ({ user, area, logout }) => {
       setTimeout(() => setSuccessMsg(null), 2000);
   };
 
+  const generatePDF = (data) => {
+      const doc = new jsPDF();
+      doc.text(`Laporan Klaim Minuman - ${area}`, 14, 15);
+      doc.setFontSize(10);
+      doc.text(`Periode: ${startDate} s/d ${endDate}`, 14, 22);
+
+      const tableColumn = ["No", "Tanggal", "Jam", "Nama Karyawan", "Minuman"];
+      const tableRows = [];
+
+      data.forEach((item, index) => {
+          const dateObj = item.timestamp ? new Date(item.timestamp.toDate()) : new Date();
+          const date = dateObj.toLocaleDateString('id-ID');
+          const time = dateObj.toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'});
+          const row = [index + 1, date, time, item.userName, item.drinkName];
+          tableRows.push(row);
+      });
+
+      doc.autoTable({
+          head: [tableColumn],
+          body: tableRows,
+          startY: 28,
+      });
+
+      doc.save(`Laporan_Klaim_${area}_${startDate}_${endDate}.pdf`);
+  };
+
   const handleSaveInventory = async (e) => {
     e.preventDefault();
     if (!newItemName || !newItemStock) return;
     try {
         if (editingItem) {
             await updateDoc(doc(db, 'inventory', editingItem.id), { 
-                name: newItemName, 
-                warehouseStock: parseInt(newItemStock),
-                day: newItemDay // Update hari
+                name: newItemName, warehouseStock: parseInt(newItemStock), day: newItemDay
             });
             setEditingItem(null);
         } else {
             await addDoc(collection(db, 'inventory'), { 
-                name: newItemName, 
-                warehouseStock: parseInt(newItemStock), 
-                area, 
-                day: newItemDay, // Simpan hari
-                createdAt: serverTimestamp() 
+                name: newItemName, warehouseStock: parseInt(newItemStock), area, day: newItemDay, createdAt: serverTimestamp() 
             });
         }
         setNewItemName(''); setNewItemStock(''); setNewItemDay('Setiap Hari'); showSuccess("Stok Disimpan");
@@ -331,18 +357,38 @@ const AdminDashboard = ({ user, area, logout }) => {
 
   const renderHistory = () => {
       const filteredClaims = allClaims.filter(item => {
-          return item.userName.toLowerCase().includes(historySearch.toLowerCase());
+          const itemDate = item.date; // YYYY-MM-DD
+          const nameMatch = item.userName.toLowerCase().includes(historySearch.toLowerCase());
+          const dateMatch = itemDate >= startDate && itemDate <= endDate;
+          return nameMatch && dateMatch;
       });
+
       return (
         <div className="p-6 pb-28 w-full">
             <h3 className="font-bold text-slate-700 text-xl mb-4 flex items-center gap-2"><History size={20}/> Riwayat Klaim</h3>
+            
+            {/* Filter Tanggal */}
             <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-4 space-y-3">
+                <div className="flex gap-2 text-xs">
+                    <div className="flex-1">
+                        <label className="text-gray-400 mb-1 block">Dari</label>
+                        <input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-gray-700"/>
+                    </div>
+                    <div className="flex-1">
+                        <label className="text-gray-400 mb-1 block">Sampai</label>
+                        <input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-gray-700"/>
+                    </div>
+                </div>
                 <div className="relative">
                     <Search size={16} className="absolute left-3 top-3 text-gray-400"/>
                     <input type="text" placeholder="Cari nama karyawan..." className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-10 pr-4 text-sm text-gray-900 focus:outline-none focus:border-indigo-400"
                         value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} />
                 </div>
+                <button onClick={() => generatePDF(filteredClaims)} className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-indigo-700">
+                    <FileDown size={16}/> Download Laporan PDF
+                </button>
             </div>
+
             <div className="space-y-3">
                 {filteredClaims.length === 0 && <p className="text-center text-gray-400 py-10">Tidak ada riwayat.</p>}
                 {filteredClaims.map(claim => (
@@ -399,7 +445,6 @@ const AdminDashboard = ({ user, area, logout }) => {
                     <input required placeholder="Nama Minuman" className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" value={newItemName} onChange={e=>setNewItemName(e.target.value)} />
                     <div className="flex gap-2">
                         <input required type="number" placeholder="Jumlah" className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" value={newItemStock} onChange={e=>setNewItemStock(e.target.value)} />
-                        {/* SELECT HARI */}
                         <select className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-gray-900" value={newItemDay} onChange={e=>setNewItemDay(e.target.value)}>
                             {DAYS_OPTION.map(d => <option key={d} value={d}>{d}</option>)}
                         </select>
@@ -493,12 +538,15 @@ const EmployeeDashboard = ({ user, area, logout }) => {
   const [showCoupon, setShowCoupon] = useState(false);
   const [historyList, setHistoryList] = useState([]);
   const [isClaiming, setIsClaiming] = useState(false); 
+  
+  // Filter Tanggal
+  const [startDate, setStartDate] = useState(getTodayString());
+  const [endDate, setEndDate] = useState(getTodayString());
 
   useEffect(() => {
     const q = query(collection(db, 'inventory'), where('area', '==', area), orderBy('name'));
     return onSnapshot(q, (snap) => {
         const allItems = snap.docs.map(d => ({id: d.id, ...d.data()}));
-        // FILTER MENU BERDASARKAN HARI
         const todayName = getDayName();
         const filteredMenu = allItems.filter(item => {
             return !item.day || item.day === 'Setiap Hari' || item.day === todayName;
@@ -522,7 +570,6 @@ const EmployeeDashboard = ({ user, area, logout }) => {
       }
   }, [activeTab, user]);
 
-  // --- STATISTICS USER LOGIC ---
   const userStats = useMemo(() => {
       const total = historyList.length;
       const counts = {};
@@ -550,7 +597,6 @@ const EmployeeDashboard = ({ user, area, logout }) => {
              const invDoc = await t.get(invRef);
              if (!invDoc.exists()) throw new Error("Item tidak ditemukan!");
              const currentStock = invDoc.data().warehouseStock;
-             
              if (currentStock <= 0) throw new Error("Stok habis saat diproses!");
 
              const newClaimRef = doc(collection(db, 'claims'));
@@ -562,13 +608,35 @@ const EmployeeDashboard = ({ user, area, logout }) => {
 
              t.update(invRef, { warehouseStock: currentStock - 1 });
         });
-        
         setShowCoupon(true);
-    } catch (e) { 
-        alert("Gagal klaim: " + e.message); 
-    } finally {
-        setIsClaiming(false);
-    }
+    } catch (e) { alert("Gagal klaim: " + e.message); } finally { setIsClaiming(false); }
+  };
+
+  const generatePDF = (data) => {
+      const doc = new jsPDF();
+      doc.text(`Riwayat Klaim Saya - ${user.displayName}`, 14, 15);
+      doc.setFontSize(10);
+      doc.text(`NRP: ${user.nrp} | Area: ${area}`, 14, 20);
+      doc.text(`Periode: ${startDate} s/d ${endDate}`, 14, 25);
+
+      const tableColumn = ["No", "Tanggal", "Jam", "Minuman"];
+      const tableRows = [];
+
+      data.forEach((item, index) => {
+          const dateObj = item.timestamp ? new Date(item.timestamp.toDate()) : new Date();
+          const date = dateObj.toLocaleDateString('id-ID');
+          const time = dateObj.toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'});
+          const row = [index + 1, date, time, item.drinkName];
+          tableRows.push(row);
+      });
+
+      doc.autoTable({
+          head: [tableColumn],
+          body: tableRows,
+          startY: 32,
+      });
+
+      doc.save(`Riwayat_Klaim_${user.nrp}.pdf`);
   };
 
   const renderDashboard = () => (
@@ -619,14 +687,19 @@ const EmployeeDashboard = ({ user, area, logout }) => {
     </div>
   );
 
-  const renderHistory = () => (
+  const renderHistory = () => {
+      const filteredHistory = historyList.filter(item => {
+          const itemDate = item.date;
+          return itemDate >= startDate && itemDate <= endDate;
+      });
+
+      return (
       <div className="p-6 pb-28 w-full">
           <h3 className="font-bold text-slate-700 mb-4 text-xl">Riwayat & Statistik</h3>
+          
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-6">
               <div className="flex items-center gap-4 mb-4 border-b border-slate-50 pb-4">
-                  <div className="bg-blue-50 p-3 rounded-full text-blue-600">
-                      <Coffee size={24} />
-                  </div>
+                  <div className="bg-blue-50 p-3 rounded-full text-blue-600"><Coffee size={24} /></div>
                   <div>
                       <p className="text-xs text-gray-400 font-bold uppercase">Total Minuman</p>
                       <h2 className="text-2xl font-black text-slate-800">{userStats.total} <span className="text-xs font-normal text-gray-400">Gelas</span></h2>
@@ -635,38 +708,48 @@ const EmployeeDashboard = ({ user, area, logout }) => {
               <div className="space-y-3">
                   {userStats.breakdown.slice(0, 5).map((item, idx) => (
                       <div key={idx}>
-                          <div className="flex justify-between text-xs mb-1">
-                              <span className="font-bold text-slate-600">{item.name}</span>
-                              <span className="text-slate-400">{item.count} ({item.percent}%)</span>
-                          </div>
-                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                              <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${item.percent}%` }}></div>
-                          </div>
+                          <div className="flex justify-between text-xs mb-1"><span className="font-bold text-slate-600">{item.name}</span><span className="text-slate-400">{item.count} ({item.percent}%)</span></div>
+                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden"><div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${item.percent}%` }}></div></div>
                       </div>
                   ))}
                   {userStats.total === 0 && <p className="text-center text-xs text-gray-400">Belum ada statistik.</p>}
               </div>
           </div>
 
+          <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-4 space-y-3">
+                <div className="flex gap-2 text-xs">
+                    <div className="flex-1">
+                        <label className="text-gray-400 mb-1 block">Dari</label>
+                        <input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-gray-700"/>
+                    </div>
+                    <div className="flex-1">
+                        <label className="text-gray-400 mb-1 block">Sampai</label>
+                        <input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-gray-700"/>
+                    </div>
+                </div>
+                <button onClick={() => generatePDF(filteredHistory)} className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-indigo-700">
+                    <FileDown size={16}/> Download Laporan PDF
+                </button>
+          </div>
+
           <h4 className="font-bold text-slate-700 mb-3 text-sm">Daftar Riwayat</h4>
           <div className="space-y-3">
-              {historyList.length === 0 && <p className="text-gray-400 text-center mt-4">Belum ada riwayat.</p>}
-              {historyList.map(item => (
+              {filteredHistory.length === 0 && <p className="text-gray-400 text-center mt-4">Belum ada riwayat.</p>}
+              {filteredHistory.map(item => (
                   <div key={item.id} onClick={() => {if(item.date === getTodayString()) setShowCoupon(true)}} className={`bg-white p-4 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden ${item.date === getTodayString() ? 'cursor-pointer ring-1 ring-blue-400' : ''}`}>
                       <div className="flex justify-between items-start mb-2">
                           <span className="font-bold text-slate-800">{item.drinkName}</span>
                           <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-1 rounded-full">{item.date}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                           <div className="text-xs font-bold px-2 py-1 rounded flex items-center gap-1 bg-green-100 text-green-600">
-                              <CheckCircle size={12}/> Berhasil
-                           </div>
+                           <div className="text-xs font-bold px-2 py-1 rounded flex items-center gap-1 bg-green-100 text-green-600"><CheckCircle size={12}/> Berhasil</div>
                       </div>
                   </div>
               ))}
           </div>
       </div>
-  );
+      );
+  };
 
   const renderProfile = () => (
       <div className="p-6 pb-28 w-full">
@@ -681,7 +764,7 @@ const EmployeeDashboard = ({ user, area, logout }) => {
                   <span className="flex items-center gap-3"><LogOut size={18}/> Keluar Akun</span><ArrowRight size={16} className="text-red-300"/>
               </button>
           </div>
-          <p className="text-center text-gray-300 text-xs mt-8">Versi Aplikasi 2.6.0</p>
+          <p className="text-center text-gray-300 text-xs mt-8">Versi Aplikasi 2.7.0</p>
       </div>
   );
 

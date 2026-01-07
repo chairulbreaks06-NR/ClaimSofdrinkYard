@@ -1,12 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
-  getAuth, 
-  signInWithEmailAndPassword, 
-  onAuthStateChanged, 
-  signOut 
-} from 'firebase/auth';
-import { 
   getFirestore, 
   collection, 
   doc, 
@@ -17,9 +11,7 @@ import {
   onSnapshot,
   serverTimestamp,
   orderBy,
-  runTransaction,
-  setDoc,
-  getDoc
+  runTransaction
 } from 'firebase/firestore';
 import { 
   Coffee, ClipboardList, Users, Plus, CheckCircle, XCircle, Calendar, 
@@ -27,7 +19,8 @@ import {
   ArrowRight, Lock, User
 } from 'lucide-react';
 
-// --- Firebase Configuration ---
+// --- 1. Firebase Configuration ---
+// Pastikan konfigurasi ini sesuai dengan Project Anda
 const firebaseConfig = {
   apiKey: "AIzaSyDVNvKd6x4Iw_BIvP6OFRB9cSrXXIW5SD4",
   authDomain: "claimlunchmkt.firebaseapp.com",
@@ -37,18 +30,17 @@ const firebaseConfig = {
   appId: "1:502120224174:web:d8f3b330ccdb31a825a43f"
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
 const db = getFirestore(app);
 
-// --- Helpers ---
+// --- 2. Helpers ---
 const formatDate = (date) => date.toISOString().split('T')[0];
 const getTodayString = () => formatDate(new Date());
-const formatRupiah = (num) => "Stok: " + num;
 
-// --- Components ---
+// --- 3. Shared Components ---
 
-// 1. Mobile Wrapper
+// Wrapper untuk tampilan Mobile
 const MobileWrapper = ({ children, className = "" }) => (
   <div className="min-h-screen bg-gray-900 flex justify-center items-center font-sans">
     <div className={`w-full max-w-md h-[100dvh] bg-gray-50 flex flex-col relative overflow-hidden shadow-2xl md:rounded-3xl ${className}`}>
@@ -57,7 +49,7 @@ const MobileWrapper = ({ children, className = "" }) => (
   </div>
 );
 
-// 2. Coupon Modal
+// Modal Kupon (Muncul saat karyawan berhasil klaim)
 const CouponModal = ({ data, onClose }) => {
   if (!data) return null;
 
@@ -70,7 +62,7 @@ const CouponModal = ({ data, onClose }) => {
                   <Coffee className="text-white" size={32} />
                 </div>
                 <h3 className="text-white font-bold text-xl tracking-wider">KUPON KLAIM</h3>
-                <p className="text-blue-100 text-[10px] tracking-[0.2em] uppercase">SiapMinum GSI</p>
+                <p className="text-blue-100 text-[10px] tracking-[0.2em] uppercase">PT Global Service Indonesia</p>
             </div>
         </div>
         <div className="p-6 pt-8 text-center relative bg-white">
@@ -101,47 +93,64 @@ const CouponModal = ({ data, onClose }) => {
   );
 };
 
-// 3. Login Screen (UPDATED FOR REAL AUTH)
-const LoginScreen = () => {
+// --- 4. Login Screen (BYPASS AUTHENTICATION) ---
+const LoginScreen = ({ setManualUser }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleLogin = async (e) => {
+  const handleLogin = (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      // Auth state change will handle redirection in App component
-    } catch (err) {
-      setError('Login Gagal. Cek Email & Password.');
-      setLoading(false);
-    }
+
+    // SIMULASI LOGIN (Cek Username Password Hardcode)
+    setTimeout(() => {
+        if (email === 'admin@gsi.co.id' && password === 'Admin123!') {
+            // Sukses Admin
+            setManualUser({
+                uid: 'admin-gsi-id',
+                email: 'admin@gsi.co.id',
+                role: 'admin',
+                displayName: 'Admin Pusat'
+            });
+        } 
+        else if (email === 'karyawan@gsi.co.id' && password === 'User123!') {
+            // Sukses Karyawan
+            setManualUser({
+                uid: 'karyawan-gsi-001', // ID statis agar riwayat tersimpan untuk demo
+                email: 'karyawan@gsi.co.id',
+                role: 'employee',
+                displayName: 'Karyawan GSI'
+            });
+        } 
+        else {
+            setError('Email atau Password salah!');
+            setLoading(false);
+        }
+    }, 800);
   };
 
   return (
     <MobileWrapper className="bg-gradient-to-br from-slate-800 to-indigo-900">
       <div className="flex-1 flex flex-col justify-center px-8 relative z-10">
         
-        {/* Logo Section */}
         <div className="bg-white/10 backdrop-blur-md w-24 h-24 rounded-3xl flex items-center justify-center mb-6 shadow-xl mx-auto border border-white/10">
           <Coffee size={48} className="text-blue-300" />
         </div>
         <h1 className="text-3xl font-bold text-white text-center mb-2">SiapMinum</h1>
-        <p className="text-blue-200 mb-8 text-center text-sm opacity-80">Login Aplikasi GSI</p>
+        <p className="text-blue-200 mb-8 text-center text-sm opacity-80">PT Global Service Indonesia</p>
 
         <form onSubmit={handleLogin} className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="relative">
             <User className="absolute left-4 top-3.5 text-gray-400" size={20} />
             <input 
-              type="email" 
+              type="text" 
               placeholder="Email Perusahaan" 
               className="w-full bg-white/10 text-white placeholder:text-gray-400 border border-white/20 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-blue-400 focus:bg-white/20 transition-all"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              required
             />
           </div>
           
@@ -153,26 +162,29 @@ const LoginScreen = () => {
               className="w-full bg-white/10 text-white placeholder:text-gray-400 border border-white/20 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:border-blue-400 focus:bg-white/20 transition-all"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              required
             />
           </div>
 
-          {error && <p className="text-red-300 text-xs text-center font-bold bg-red-900/50 p-2 rounded-lg">{error}</p>}
+          {error && <div className="bg-red-500/20 border border-red-500/50 p-3 rounded-xl"><p className="text-red-200 text-xs text-center font-bold">{error}</p></div>}
 
           <button
             type="submit"
             disabled={loading}
             className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-4 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-transform hover:shadow-blue-500/30"
           >
-            {loading ? 'Memproses...' : 'Masuk Sistem'} <ArrowRight size={20} />
+            {loading ? 'Memverifikasi...' : 'Masuk Aplikasi'} <ArrowRight size={20} />
           </button>
         </form>
 
-        <div className="mt-8 text-center">
-            <p className="text-white/30 text-xs">Default Accounts (Untuk Test):</p>
-            <div className="flex gap-2 justify-center mt-2">
-                <button onClick={() => {setEmail('admin@gsi.co.id'); setPassword('Admin123!')}} className="text-[10px] bg-white/5 text-white/50 px-2 py-1 rounded">Isi Admin</button>
-                <button onClick={() => {setEmail('karyawan@gsi.co.id'); setPassword('User123!')}} className="text-[10px] bg-white/5 text-white/50 px-2 py-1 rounded">Isi Karyawan</button>
+        <div className="mt-8 text-center border-t border-white/10 pt-6">
+            <p className="text-white/40 text-[10px] mb-3 uppercase tracking-widest font-bold">Mode Demo (Klik Untuk Isi)</p>
+            <div className="flex gap-2 justify-center">
+                <button onClick={() => {setEmail('admin@gsi.co.id'); setPassword('Admin123!')}} className="text-[10px] bg-indigo-500/20 hover:bg-indigo-500/40 border border-indigo-400/30 text-indigo-200 px-4 py-2 rounded-lg transition-colors">
+                    Akun Admin
+                </button>
+                <button onClick={() => {setEmail('karyawan@gsi.co.id'); setPassword('User123!')}} className="text-[10px] bg-blue-500/20 hover:bg-blue-500/40 border border-blue-400/30 text-blue-200 px-4 py-2 rounded-lg transition-colors">
+                    Akun Karyawan
+                </button>
             </div>
         </div>
 
@@ -181,7 +193,7 @@ const LoginScreen = () => {
   );
 };
 
-// 4. Admin Dashboard
+// --- 5. Admin Dashboard ---
 const AdminDashboard = ({ user, logout }) => {
   const [activeTab, setActiveTab] = useState('approvals');
   const [inventory, setInventory] = useState([]);
@@ -189,7 +201,7 @@ const AdminDashboard = ({ user, logout }) => {
   const [newItemName, setNewItemName] = useState('');
   const [newItemStock, setNewItemStock] = useState(0);
 
-  // Realtime Inventory
+  // REAL-TIME: Ambil data Inventory
   useEffect(() => {
     const q = query(collection(db, 'inventory'), orderBy('createdAt', 'desc'));
     return onSnapshot(q, (snap) => {
@@ -197,7 +209,7 @@ const AdminDashboard = ({ user, logout }) => {
     });
   }, []);
 
-  // Realtime Pending Claims
+  // REAL-TIME: Ambil data Klaim Pending
   useEffect(() => {
     const q = query(
         collection(db, 'claims'),
@@ -212,14 +224,17 @@ const AdminDashboard = ({ user, logout }) => {
   const handleAddInventory = async (e) => {
     e.preventDefault();
     if (!newItemName) return;
-    await addDoc(collection(db, 'inventory'), {
-      name: newItemName,
-      warehouseStock: parseInt(newItemStock),
-      createdAt: serverTimestamp(),
-      dailyLimit: 50, // Default limit per day
-      claimedToday: 0
-    });
-    setNewItemName(''); setNewItemStock(0);
+    try {
+        await addDoc(collection(db, 'inventory'), {
+          name: newItemName,
+          warehouseStock: parseInt(newItemStock),
+          createdAt: serverTimestamp(),
+          claimedToday: 0
+        });
+        setNewItemName(''); setNewItemStock(0);
+    } catch(err) {
+        alert("Gagal tambah stok: " + err.message);
+    }
   };
 
   const processClaim = async (claim, isApproved) => {
@@ -228,21 +243,25 @@ const AdminDashboard = ({ user, logout }) => {
         
         if (isApproved) {
             await runTransaction(db, async (t) => {
-                // Update claim status
-                t.update(claimRef, { status: 'approved', processedAt: serverTimestamp() });
+                // 1. Update status klaim
+                t.update(claimRef, { status: 'approved', processedAt: serverTimestamp(), processedBy: user.email });
                 
-                // Update Inventory Stock
+                // 2. Kurangi Stok Gudang
                 const invRef = doc(db, 'inventory', claim.inventoryId);
                 const invDoc = await t.get(invRef);
                 if (invDoc.exists()) {
-                    const newStock = Math.max(0, invDoc.data().warehouseStock - 1);
+                    const currentStock = invDoc.data().warehouseStock || 0;
+                    const newStock = Math.max(0, currentStock - 1);
                     t.update(invRef, { warehouseStock: newStock });
                 }
             });
         } else {
-            await updateDoc(claimRef, { status: 'rejected', processedAt: serverTimestamp() });
+            await updateDoc(claimRef, { status: 'rejected', processedAt: serverTimestamp(), processedBy: user.email });
         }
-    } catch (e) { console.error("Error processing claim:", e); }
+    } catch (e) { 
+        console.error("Error processing claim:", e);
+        alert("Gagal memproses data.");
+    }
   };
 
   return (
@@ -255,9 +274,9 @@ const AdminDashboard = ({ user, logout }) => {
               <Shield size={20} className="text-indigo-300"/>
               <h2 className="text-xl font-bold">Admin GSI</h2>
             </div>
-            <p className="text-sm mt-1 text-indigo-200">Mode Real-time Database</p>
+            <p className="text-sm mt-1 text-indigo-200">Dashboard Manajemen</p>
           </div>
-          <button onClick={logout} className="bg-white/20 p-2 rounded-full hover:bg-white/30 backdrop-blur-sm">
+          <button onClick={logout} className="bg-white/20 p-2 rounded-full hover:bg-white/30 backdrop-blur-sm transition-colors">
             <LogOut size={18} />
           </button>
         </div>
@@ -265,17 +284,17 @@ const AdminDashboard = ({ user, logout }) => {
         <div className="grid grid-cols-2 gap-3">
           <button 
             onClick={() => setActiveTab('approvals')}
-            className={`p-4 rounded-2xl flex flex-col items-start gap-2 transition-all ${activeTab === 'approvals' ? 'bg-white text-slate-800 shadow-lg' : 'bg-white/10 text-white'}`}
+            className={`p-4 rounded-2xl flex flex-col items-start gap-2 transition-all ${activeTab === 'approvals' ? 'bg-white text-slate-800 shadow-lg' : 'bg-white/10 text-white hover:bg-white/20'}`}
           >
             <div className="flex justify-between w-full">
               <CheckCircle size={24} />
-              {pendingClaims.length > 0 && <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-sm">{pendingClaims.length}</span>}
+              {pendingClaims.length > 0 && <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-sm animate-pulse">{pendingClaims.length}</span>}
             </div>
             <span className="font-bold text-sm">Approval</span>
           </button>
           <button 
             onClick={() => setActiveTab('inventory')}
-            className={`p-4 rounded-2xl flex flex-col items-start gap-2 transition-all ${activeTab === 'inventory' ? 'bg-white text-slate-800 shadow-lg' : 'bg-white/10 text-white'}`}
+            className={`p-4 rounded-2xl flex flex-col items-start gap-2 transition-all ${activeTab === 'inventory' ? 'bg-white text-slate-800 shadow-lg' : 'bg-white/10 text-white hover:bg-white/20'}`}
           >
             <Package size={24} />
             <span className="font-bold text-sm">Master Stok</span>
@@ -344,6 +363,7 @@ const AdminDashboard = ({ user, logout }) => {
                     </div>
                     <div>
                         <span className="font-bold text-slate-700 block">{item.name}</span>
+                        <span className="text-[10px] text-gray-400">Update: {item.createdAt ? new Date(item.createdAt.seconds * 1000).toLocaleDateString() : '-'}</span>
                     </div>
                   </div>
                   <div className="bg-indigo-50 text-indigo-700 px-4 py-1.5 rounded-lg font-mono font-bold text-sm">
@@ -359,7 +379,7 @@ const AdminDashboard = ({ user, logout }) => {
   );
 };
 
-// 5. Employee Dashboard
+// --- 6. Employee Dashboard ---
 const EmployeeDashboard = ({ user, logout }) => {
   const [activeTab, setActiveTab] = useState('menu'); 
   const [menuItems, setMenuItems] = useState([]);
@@ -368,7 +388,7 @@ const EmployeeDashboard = ({ user, logout }) => {
   const [lastClaimData, setLastClaimData] = useState(null);
   const today = getTodayString();
 
-  // Realtime Menu & Stock from Inventory Collection
+  // REAL-TIME: Ambil Menu & Stok
   useEffect(() => {
     const q = query(collection(db, 'inventory'), orderBy('name'));
     return onSnapshot(q, (snap) => {
@@ -376,14 +396,14 @@ const EmployeeDashboard = ({ user, logout }) => {
     });
   }, []);
 
-  // Check if User already claimed today
+  // REAL-TIME: Cek Status Klaim Hari Ini
   useEffect(() => {
     if (!user) return;
     const q = query(
       collection(db, 'claims'),
       where('userId', '==', user.uid),
       where('date', '==', today),
-      where('status', '!=', 'rejected') // Ignore rejected claims
+      where('status', '!=', 'rejected') // Jika ditolak, boleh klaim lagi (opsional logic)
     );
     return onSnapshot(q, (snap) => {
       setHasClaimedToday(!snap.empty);
@@ -392,9 +412,7 @@ const EmployeeDashboard = ({ user, logout }) => {
 
   const handleOrder = async (item) => {
     if (hasClaimedToday) return;
-    
-    // Optimistic UI update or simple alert check
-    if(item.warehouseStock <= 0) {
+    if (item.warehouseStock <= 0) {
         alert("Maaf, Stok Habis!");
         return;
     }
@@ -402,24 +420,24 @@ const EmployeeDashboard = ({ user, logout }) => {
     try {
         const claimData = {
             userId: user.uid,
-            userName: user.email.split('@')[0], // Get name from email
+            userName: user.displayName || 'Karyawan',
             inventoryId: item.id,
             drinkName: item.name,
             date: today,
             status: 'pending',
-            location: 'Kantor Pusat', // Default logic for now
+            location: 'Kantor Pusat', 
             timestamp: serverTimestamp()
         };
 
         await addDoc(collection(db, 'claims'), claimData);
 
-        // Prepare data for modal (use local date for immediate display)
+        // Tampilkan Kupon (Menggunakan timestamp lokal untuk UI instan)
         setLastClaimData({...claimData, timestamp: new Date()});
         setShowCoupon(true);
 
     } catch (e) { 
         console.error(e);
-        alert("Gagal klaim, coba lagi.");
+        alert("Gagal klaim: " + e.message);
     }
   };
 
@@ -431,7 +449,6 @@ const EmployeeDashboard = ({ user, logout }) => {
   return (
     <MobileWrapper className="bg-gray-50">
       
-      {/* Show Coupon Modal if Active */}
       {showCoupon && <CouponModal data={lastClaimData} onClose={closeCouponAndGoHistory} />}
 
       <div className="sticky top-0 bg-white z-20 px-6 pt-8 pb-4 shadow-sm rounded-b-[2rem]">
@@ -442,7 +459,7 @@ const EmployeeDashboard = ({ user, logout }) => {
                Lokasi Anda
              </div>
              <div className="font-bold text-gray-800 text-lg">
-               Kantor Pusat GSI
+               PT Global Service Indonesia
              </div>
            </div>
            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-bold border-2 border-blue-200 shadow-sm uppercase">
@@ -477,6 +494,7 @@ const EmployeeDashboard = ({ user, logout }) => {
               </h3>
               
               <div className="space-y-3">
+                 {menuItems.length === 0 && <p className="text-center text-gray-400 text-sm py-8">Belum ada stok tersedia.</p>}
                  {menuItems.map(item => {
                       const isAvailable = !hasClaimedToday && item.warehouseStock > 0;
                       return (
@@ -575,32 +593,21 @@ const HistorySection = ({ user }) => {
   );
 };
 
-// --- Main App ---
+// --- 7. Main App ---
 const App = () => {
+  // State User Lokal (Hanya di React, tidak cek ke Firebase Auth)
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Listen to Firebase Auth state
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const handleLogout = async () => {
-    await signOut(auth);
+  const handleLogout = () => {
+    setUser(null);
   };
-
-  if (loading) return <div className="h-screen bg-gray-900 flex items-center justify-center text-white">Loading...</div>;
-
+  
   if (!user) {
-    return <LoginScreen />;
+    return <LoginScreen setManualUser={setUser} />;
   }
   
-  // Logic: Tentukan Role berdasarkan Email (Bisa juga menggunakan Custom Claims untuk produksi skala besar)
-  if (user.email === 'admin@gsi.co.id') {
+  // Routing Sederhana
+  if (user.role === 'admin') {
       return <AdminDashboard user={user} logout={handleLogout} />;
   }
   

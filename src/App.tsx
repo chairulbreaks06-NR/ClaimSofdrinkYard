@@ -7,13 +7,11 @@ import {
 } from 'firebase/firestore';
 import { 
   Coffee, ClipboardList, Users, CheckCircle, Ticket, 
-  LogOut, Package, MapPin, Clock, Shield, ArrowRight, Lock, 
-  User, Edit, Trash2, UserPlus, Building2, WifiOff,
+  LogOut, Package, MapPin, Clock, ArrowRight, Lock, 
+  User, Edit, Trash2, Building2, WifiOff,
   LayoutDashboard, History, UserCircle, Search, Briefcase, 
-  Loader2, BarChart3, TrendingUp, CalendarDays, FileDown, Calendar
+  Loader2, BarChart3, TrendingUp, CalendarDays, FileSpreadsheet, Download
 } from 'lucide-react';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
 
 // --- 1. Firebase Configuration ---
 const firebaseConfig = {
@@ -55,12 +53,36 @@ const formatDateTime = (timestamp) => {
   }).format(date);
 };
 
+const exportToCSV = (data, fileName) => {
+    if (!data || data.length === 0) {
+        alert("Tidak ada data untuk diunduh.");
+        return;
+    }
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "Tanggal,Waktu,Nama Karyawan,NRP,Nama Minuman,Lokasi,Status\n";
+    data.forEach(row => {
+        const dateTimeStr = formatDateTime(row.timestamp);
+        const timeStr = dateTimeStr.split(', ')[1] || '-';
+        const sanitizedName = row.userName ? row.userName.replace(/,/g, " ") : "-";
+        const sanitizedDrink = row.drinkName ? row.drinkName.replace(/,/g, " ") : "-";
+        const rowString = `${row.date},${timeStr},"${sanitizedName}","${row.userNrp || '-'}","${sanitizedDrink}","${row.area || '-'}",Sukses`;
+        csvContent += rowString + "\n";
+    });
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `${fileName}_${getTodayString()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
+
 // --- 3. Shared Components ---
 
 const SuccessModal = ({ message, onClose }) => {
     if (!message) return null;
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
             <div className="bg-white p-6 rounded-2xl shadow-2xl flex flex-col items-center animate-in zoom-in-95 w-3/4 max-w-sm">
                 <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-4">
                     <CheckCircle size={32} />
@@ -93,9 +115,18 @@ const ConnectionStatus = () => {
     );
 };
 
+// --- KEY FIX: Mobile Wrapper & Global Style ---
 const MobileWrapper = ({ children, className = "" }) => (
-  <div className="min-h-screen bg-gray-900 flex justify-center items-center font-sans overflow-hidden">
-    <div className={`w-full max-w-md h-[100dvh] bg-gray-50 flex flex-col relative overflow-hidden shadow-2xl md:rounded-3xl ${className}`}>
+  // Container Luar: Fixed inset-0 mengunci layar agar tidak bisa scroll body browser
+  <div className="fixed inset-0 bg-gray-900 flex justify-center items-center font-sans overflow-hidden touch-none">
+    {/* Style tag untuk mematikan overscroll bounce pada iOS */}
+    <style>{`
+      body { overflow: hidden; position: fixed; width: 100%; height: 100%; }
+      * { -webkit-tap-highlight-color: transparent; }
+    `}</style>
+    
+    {/* Container HP: Pada mobile width 100%, pada desktop max-w-md */}
+    <div className={`w-full h-full md:h-[95dvh] md:max-w-md md:rounded-[2.5rem] bg-gray-50 flex flex-col relative overflow-hidden shadow-2xl ${className}`}>
       <ConnectionStatus />
       {children}
     </div>
@@ -127,9 +158,9 @@ const CouponModal = ({ data, onClose }) => {
             </div>
             <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg mb-6">
                <div className="text-left">
-                  <p className="text-[10px] text-gray-400 uppercase font-bold">Waktu Klaim</p>
+                  <p className="text-[10px] text-gray-400 uppercase font-bold">Waktu</p>
                   <p className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                    <Clock size={12}/> {formatDateTime(data.timestamp)}
+                    <Clock size={12}/> {formatDateTime(data.timestamp).split(',')[1]}
                   </p>
                </div>
                <div className="text-right border-l pl-3">
@@ -171,8 +202,8 @@ const LoginScreen = ({ onLoginSuccess }) => {
 
   return (
     <MobileWrapper className="bg-gradient-to-br from-slate-900 to-indigo-950">
-      <div className="flex-1 flex flex-col justify-center px-8 relative z-10 w-full">
-        <div className="bg-white/10 backdrop-blur-md w-24 h-24 rounded-3xl flex items-center justify-center mb-6 shadow-xl mx-auto border border-white/10">
+      <div className="flex-1 flex flex-col justify-center px-8 relative z-10 w-full overflow-y-auto">
+        <div className="bg-white/10 backdrop-blur-md w-24 h-24 rounded-3xl flex items-center justify-center mb-6 shadow-xl mx-auto border border-white/10 shrink-0">
           <Coffee size={48} className="text-blue-300" />
         </div>
         <h1 className="text-3xl font-bold text-white text-center mb-2">SiapMinum GSI</h1>
@@ -202,8 +233,8 @@ const LoginScreen = ({ onLoginSuccess }) => {
 const AreaSelectionScreen = ({ user, onSelectArea, onLogout }) => {
   return (
     <MobileWrapper className="bg-slate-50">
-      <div className="p-8 h-full flex flex-col w-full">
-        <div className="flex justify-between items-center mb-8">
+      <div className="flex-1 flex flex-col w-full p-8 overflow-y-auto">
+        <div className="flex justify-between items-center mb-8 shrink-0">
             <div><h1 className="text-2xl font-bold text-slate-800">Pilih Area</h1><p className="text-slate-500 text-sm">Halo, {user.displayName}</p></div>
             <button onClick={onLogout} className="text-red-500 bg-red-50 p-2 rounded-full"><LogOut size={18}/></button>
         </div>
@@ -232,11 +263,10 @@ const AdminDashboard = ({ user, area, logout }) => {
   const [allClaims, setAllClaims] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [usersList, setUsersList] = useState([]);
-  const [historySearch, setHistorySearch] = useState('');
   
-  // Filter Tanggal
-  const [startDate, setStartDate] = useState(getTodayString());
-  const [endDate, setEndDate] = useState(getTodayString());
+  const [historySearch, setHistorySearch] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   const [newItemName, setNewItemName] = useState('');
   const [newItemStock, setNewItemStock] = useState('');
@@ -251,11 +281,7 @@ const AdminDashboard = ({ user, area, logout }) => {
     const q = query(collection(db, 'inventory'), where('area', '==', area));
     return onSnapshot(q, (snap) => {
         const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        items.sort((a, b) => {
-            const timeA = a.createdAt?.seconds || Date.now()/1000;
-            const timeB = b.createdAt?.seconds || Date.now()/1000;
-            return timeB - timeA; 
-        });
+        items.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
         setInventory(items);
     });
   }, [area]);
@@ -279,44 +305,24 @@ const AdminDashboard = ({ user, area, logout }) => {
       setTimeout(() => setSuccessMsg(null), 2000);
   };
 
-  const generatePDF = (data) => {
-      const doc = new jsPDF();
-      doc.text(`Laporan Klaim Minuman - ${area}`, 14, 15);
-      doc.setFontSize(10);
-      doc.text(`Periode: ${startDate} s/d ${endDate}`, 14, 22);
-
-      const tableColumn = ["No", "Tanggal", "Jam", "Nama Karyawan", "Minuman"];
-      const tableRows = [];
-
-      data.forEach((item, index) => {
-          const dateObj = item.timestamp ? new Date(item.timestamp.toDate()) : new Date();
-          const date = dateObj.toLocaleDateString('id-ID');
-          const time = dateObj.toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'});
-          const row = [index + 1, date, time, item.userName, item.drinkName];
-          tableRows.push(row);
-      });
-
-      doc.autoTable({
-          head: [tableColumn],
-          body: tableRows,
-          startY: 28,
-      });
-
-      doc.save(`Laporan_Klaim_${area}_${startDate}_${endDate}.pdf`);
-  };
-
   const handleSaveInventory = async (e) => {
     e.preventDefault();
     if (!newItemName || !newItemStock) return;
     try {
         if (editingItem) {
             await updateDoc(doc(db, 'inventory', editingItem.id), { 
-                name: newItemName, warehouseStock: parseInt(newItemStock), day: newItemDay
+                name: newItemName, 
+                warehouseStock: parseInt(newItemStock),
+                day: newItemDay
             });
             setEditingItem(null);
         } else {
             await addDoc(collection(db, 'inventory'), { 
-                name: newItemName, warehouseStock: parseInt(newItemStock), area, day: newItemDay, createdAt: serverTimestamp() 
+                name: newItemName, 
+                warehouseStock: parseInt(newItemStock), 
+                area, 
+                day: newItemDay,
+                createdAt: serverTimestamp() 
             });
         }
         setNewItemName(''); setNewItemStock(''); setNewItemDay('Setiap Hari'); showSuccess("Stok Disimpan");
@@ -328,7 +334,6 @@ const AdminDashboard = ({ user, area, logout }) => {
       setNewItemName(item.name);
       setNewItemStock(item.warehouseStock);
       setNewItemDay(item.day || 'Setiap Hari');
-      window.scrollTo(0,0);
   }
 
   const handleAddUser = async (e) => {
@@ -357,35 +362,39 @@ const AdminDashboard = ({ user, area, logout }) => {
 
   const renderHistory = () => {
       const filteredClaims = allClaims.filter(item => {
-          const itemDate = item.date; // YYYY-MM-DD
-          const nameMatch = item.userName.toLowerCase().includes(historySearch.toLowerCase());
-          const dateMatch = itemDate >= startDate && itemDate <= endDate;
-          return nameMatch && dateMatch;
+          const matchName = item.userName.toLowerCase().includes(historySearch.toLowerCase());
+          let matchDate = true;
+          if (startDate) matchDate = matchDate && item.date >= startDate;
+          if (endDate) matchDate = matchDate && item.date <= endDate;
+          return matchName && matchDate;
       });
 
       return (
         <div className="p-6 pb-28 w-full">
             <h3 className="font-bold text-slate-700 text-xl mb-4 flex items-center gap-2"><History size={20}/> Riwayat Klaim</h3>
             
-            {/* Filter Tanggal */}
             <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-4 space-y-3">
-                <div className="flex gap-2 text-xs">
-                    <div className="flex-1">
-                        <label className="text-gray-400 mb-1 block">Dari</label>
-                        <input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-gray-700"/>
-                    </div>
-                    <div className="flex-1">
-                        <label className="text-gray-400 mb-1 block">Sampai</label>
-                        <input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-gray-700"/>
-                    </div>
-                </div>
                 <div className="relative">
                     <Search size={16} className="absolute left-3 top-3 text-gray-400"/>
                     <input type="text" placeholder="Cari nama karyawan..." className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-10 pr-4 text-sm text-gray-900 focus:outline-none focus:border-indigo-400"
                         value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} />
                 </div>
-                <button onClick={() => generatePDF(filteredClaims)} className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-indigo-700">
-                    <FileDown size={16}/> Download Laporan PDF
+                <div className="grid grid-cols-2 gap-2">
+                    <div>
+                        <label className="text-[10px] font-bold text-gray-400 ml-1">Dari</label>
+                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} 
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs text-gray-700 focus:outline-none"/>
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-bold text-gray-400 ml-1">Sampai</label>
+                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} 
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs text-gray-700 focus:outline-none"/>
+                    </div>
+                </div>
+                <button 
+                    onClick={() => exportToCSV(filteredClaims, `Laporan_GSI_${area}`)}
+                    className="w-full bg-green-600 text-white py-2 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-green-700 active:scale-95 transition-all">
+                    <FileSpreadsheet size={16}/> Download Data ({filteredClaims.length})
                 </button>
             </div>
 
@@ -503,16 +512,21 @@ const AdminDashboard = ({ user, area, logout }) => {
   return (
     <MobileWrapper className="bg-slate-50">
       <SuccessModal message={successMsg} onClose={() => setSuccessMsg(null)} />
-      <div className="bg-indigo-900 px-6 py-6 rounded-b-[2rem] shadow-lg sticky top-0 z-20 flex justify-between items-center text-white w-full">
+      {/* HEADER FIXED */}
+      <div className="bg-indigo-900 px-6 py-6 rounded-b-[2rem] shadow-lg flex justify-between items-center text-white w-full shrink-0 z-20">
          <div><h2 className="text-lg font-bold">Admin Panel</h2><p className="text-xs text-indigo-300 flex items-center gap-1"><MapPin size={10}/> {area}</p></div>
          <button onClick={logout} className="bg-white/20 p-2 rounded-full hover:bg-white/30"><LogOut size={16}/></button>
       </div>
-      <div className="flex-1 overflow-y-auto h-full w-full">
+      
+      {/* SCROLLABLE CONTENT */}
+      <div className="flex-1 overflow-y-auto w-full overscroll-none scrollbar-hide">
           {activeTab === 'history' && renderHistory()}
           {activeTab === 'stats' && renderStats()}
           {activeTab === 'manage' && renderManage()}
       </div>
-      <div className="absolute bottom-0 w-full bg-white border-t border-slate-100 py-3 px-6 pb-6 rounded-t-2xl shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-30 flex justify-between items-center">
+      
+      {/* FOOTER FIXED */}
+      <div className="bg-white border-t border-slate-100 py-3 px-6 pb-6 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-30 flex justify-between items-center shrink-0">
           <button onClick={() => setActiveTab('history')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'history' ? 'text-indigo-600 scale-105' : 'text-slate-400'}`}>
               <div className={`p-1.5 rounded-xl ${activeTab === 'history' ? 'bg-indigo-50' : 'bg-transparent'}`}><History size={22} strokeWidth={activeTab === 'history' ? 2.5 : 2} /></div>
               <span className="text-[10px] font-bold">Riwayat</span>
@@ -539,18 +553,18 @@ const EmployeeDashboard = ({ user, area, logout }) => {
   const [historyList, setHistoryList] = useState([]);
   const [isClaiming, setIsClaiming] = useState(false); 
   
-  // Filter Tanggal
-  const [startDate, setStartDate] = useState(getTodayString());
-  const [endDate, setEndDate] = useState(getTodayString());
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
-    const q = query(collection(db, 'inventory'), where('area', '==', area), orderBy('name'));
+    const q = query(collection(db, 'inventory'), where('area', '==', area));
     return onSnapshot(q, (snap) => {
         const allItems = snap.docs.map(d => ({id: d.id, ...d.data()}));
         const todayName = getDayName();
         const filteredMenu = allItems.filter(item => {
             return !item.day || item.day === 'Setiap Hari' || item.day === todayName;
         });
+        filteredMenu.sort((a,b) => a.name.localeCompare(b.name));
         setMenuItems(filteredMenu);
     });
   }, [area]);
@@ -597,6 +611,7 @@ const EmployeeDashboard = ({ user, area, logout }) => {
              const invDoc = await t.get(invRef);
              if (!invDoc.exists()) throw new Error("Item tidak ditemukan!");
              const currentStock = invDoc.data().warehouseStock;
+             
              if (currentStock <= 0) throw new Error("Stok habis saat diproses!");
 
              const newClaimRef = doc(collection(db, 'claims'));
@@ -608,35 +623,13 @@ const EmployeeDashboard = ({ user, area, logout }) => {
 
              t.update(invRef, { warehouseStock: currentStock - 1 });
         });
+        
         setShowCoupon(true);
-    } catch (e) { alert("Gagal klaim: " + e.message); } finally { setIsClaiming(false); }
-  };
-
-  const generatePDF = (data) => {
-      const doc = new jsPDF();
-      doc.text(`Riwayat Klaim Saya - ${user.displayName}`, 14, 15);
-      doc.setFontSize(10);
-      doc.text(`NRP: ${user.nrp} | Area: ${area}`, 14, 20);
-      doc.text(`Periode: ${startDate} s/d ${endDate}`, 14, 25);
-
-      const tableColumn = ["No", "Tanggal", "Jam", "Minuman"];
-      const tableRows = [];
-
-      data.forEach((item, index) => {
-          const dateObj = item.timestamp ? new Date(item.timestamp.toDate()) : new Date();
-          const date = dateObj.toLocaleDateString('id-ID');
-          const time = dateObj.toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit'});
-          const row = [index + 1, date, time, item.drinkName];
-          tableRows.push(row);
-      });
-
-      doc.autoTable({
-          head: [tableColumn],
-          body: tableRows,
-          startY: 32,
-      });
-
-      doc.save(`Riwayat_Klaim_${user.nrp}.pdf`);
+    } catch (e) { 
+        alert("Gagal klaim: " + e.message); 
+    } finally {
+        setIsClaiming(false);
+    }
   };
 
   const renderDashboard = () => (
@@ -689,65 +682,80 @@ const EmployeeDashboard = ({ user, area, logout }) => {
 
   const renderHistory = () => {
       const filteredHistory = historyList.filter(item => {
-          const itemDate = item.date;
-          return itemDate >= startDate && itemDate <= endDate;
+          let matchDate = true;
+          if (startDate) matchDate = matchDate && item.date >= startDate;
+          if (endDate) matchDate = matchDate && item.date <= endDate;
+          return matchDate;
       });
 
       return (
-      <div className="p-6 pb-28 w-full">
-          <h3 className="font-bold text-slate-700 mb-4 text-xl">Riwayat & Statistik</h3>
-          
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-6">
-              <div className="flex items-center gap-4 mb-4 border-b border-slate-50 pb-4">
-                  <div className="bg-blue-50 p-3 rounded-full text-blue-600"><Coffee size={24} /></div>
-                  <div>
-                      <p className="text-xs text-gray-400 font-bold uppercase">Total Minuman</p>
-                      <h2 className="text-2xl font-black text-slate-800">{userStats.total} <span className="text-xs font-normal text-gray-400">Gelas</span></h2>
-                  </div>
-              </div>
-              <div className="space-y-3">
-                  {userStats.breakdown.slice(0, 5).map((item, idx) => (
-                      <div key={idx}>
-                          <div className="flex justify-between text-xs mb-1"><span className="font-bold text-slate-600">{item.name}</span><span className="text-slate-400">{item.count} ({item.percent}%)</span></div>
-                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden"><div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${item.percent}%` }}></div></div>
-                      </div>
-                  ))}
-                  {userStats.total === 0 && <p className="text-center text-xs text-gray-400">Belum ada statistik.</p>}
-              </div>
-          </div>
-
-          <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-4 space-y-3">
-                <div className="flex gap-2 text-xs">
-                    <div className="flex-1">
-                        <label className="text-gray-400 mb-1 block">Dari</label>
-                        <input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-gray-700"/>
+        <div className="p-6 pb-28 w-full">
+            <h3 className="font-bold text-slate-700 mb-4 text-xl">Riwayat & Statistik</h3>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-6">
+                <div className="flex items-center gap-4 mb-4 border-b border-slate-50 pb-4">
+                    <div className="bg-blue-50 p-3 rounded-full text-blue-600">
+                        <Coffee size={24} />
                     </div>
-                    <div className="flex-1">
-                        <label className="text-gray-400 mb-1 block">Sampai</label>
-                        <input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-gray-700"/>
+                    <div>
+                        <p className="text-xs text-gray-400 font-bold uppercase">Total Minuman</p>
+                        <h2 className="text-2xl font-black text-slate-800">{userStats.total} <span className="text-xs font-normal text-gray-400">Gelas</span></h2>
                     </div>
                 </div>
-                <button onClick={() => generatePDF(filteredHistory)} className="w-full bg-indigo-600 text-white py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 hover:bg-indigo-700">
-                    <FileDown size={16}/> Download Laporan PDF
-                </button>
-          </div>
+                <div className="space-y-3">
+                    {userStats.breakdown.slice(0, 5).map((item, idx) => (
+                        <div key={idx}>
+                            <div className="flex justify-between text-xs mb-1">
+                                <span className="font-bold text-slate-600">{item.name}</span>
+                                <span className="text-slate-400">{item.count} ({item.percent}%)</span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${item.percent}%` }}></div>
+                            </div>
+                        </div>
+                    ))}
+                    {userStats.total === 0 && <p className="text-center text-xs text-gray-400">Belum ada statistik.</p>}
+                </div>
+            </div>
 
-          <h4 className="font-bold text-slate-700 mb-3 text-sm">Daftar Riwayat</h4>
-          <div className="space-y-3">
-              {filteredHistory.length === 0 && <p className="text-gray-400 text-center mt-4">Belum ada riwayat.</p>}
-              {filteredHistory.map(item => (
-                  <div key={item.id} onClick={() => {if(item.date === getTodayString()) setShowCoupon(true)}} className={`bg-white p-4 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden ${item.date === getTodayString() ? 'cursor-pointer ring-1 ring-blue-400' : ''}`}>
-                      <div className="flex justify-between items-start mb-2">
-                          <span className="font-bold text-slate-800">{item.drinkName}</span>
-                          <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-1 rounded-full">{item.date}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                           <div className="text-xs font-bold px-2 py-1 rounded flex items-center gap-1 bg-green-100 text-green-600"><CheckCircle size={12}/> Berhasil</div>
-                      </div>
-                  </div>
-              ))}
-          </div>
-      </div>
+            <h4 className="font-bold text-slate-700 mb-3 text-sm">Daftar Riwayat</h4>
+            
+            <div className="bg-white p-3 rounded-2xl border border-slate-100 mb-4 shadow-sm">
+                 <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div>
+                        <label className="text-[10px] font-bold text-gray-400 ml-1">Dari</label>
+                        <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} 
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-2 text-xs text-gray-700 focus:outline-none"/>
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-bold text-gray-400 ml-1">Sampai</label>
+                        <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} 
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-2 text-xs text-gray-700 focus:outline-none"/>
+                    </div>
+                </div>
+                <button 
+                    onClick={() => exportToCSV(filteredHistory, `Riwayat_Saya_${user.nrp}`)}
+                    className="w-full bg-slate-800 text-white py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-slate-900 active:scale-95 transition-all">
+                    <Download size={14}/> Download Riwayat
+                </button>
+            </div>
+
+            <div className="space-y-3">
+                {filteredHistory.length === 0 && <p className="text-gray-400 text-center mt-4 text-xs">Belum ada riwayat di tanggal ini.</p>}
+                {filteredHistory.map(item => (
+                    <div key={item.id} onClick={() => {if(item.date === getTodayString()) setShowCoupon(true)}} className={`bg-white p-4 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden ${item.date === getTodayString() ? 'cursor-pointer ring-1 ring-blue-400' : ''}`}>
+                        <div className="flex justify-between items-start mb-2">
+                            <span className="font-bold text-slate-800">{item.drinkName}</span>
+                            <span className="text-[10px] text-gray-400 bg-gray-100 px-2 py-1 rounded-full">{item.date}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                             <div className="text-xs font-bold px-2 py-1 rounded flex items-center gap-1 bg-green-100 text-green-600">
+                                <CheckCircle size={12}/> Berhasil
+                             </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
       );
   };
 
@@ -764,23 +772,29 @@ const EmployeeDashboard = ({ user, area, logout }) => {
                   <span className="flex items-center gap-3"><LogOut size={18}/> Keluar Akun</span><ArrowRight size={16} className="text-red-300"/>
               </button>
           </div>
-          <p className="text-center text-gray-300 text-xs mt-8">Versi Aplikasi 2.7.0</p>
+          <p className="text-center text-gray-300 text-xs mt-8">Versi Aplikasi 2.8.0 FixLayout</p>
       </div>
   );
 
   return (
     <MobileWrapper className="bg-slate-50">
       {showCoupon && <CouponModal data={todaysClaim} onClose={() => setShowCoupon(false)} />}
-      <div className="bg-white px-6 py-4 rounded-b-3xl shadow-sm sticky top-0 z-20 flex justify-between items-center w-full">
+      
+      {/* HEADER FIXED */}
+      <div className="bg-white px-6 py-4 rounded-b-3xl shadow-sm flex justify-between items-center w-full shrink-0 z-20">
          <div><h2 className="text-lg font-bold text-slate-800">{activeTab === 'dashboard' ? 'Beranda' : activeTab === 'history' ? 'Riwayat' : 'Profil Saya'}</h2><p className="text-xs text-slate-400 flex items-center gap-1"><MapPin size={10}/> {area}</p></div>
          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">{user.displayName.charAt(0)}</div>
       </div>
-      <div className="flex-1 overflow-y-auto h-full w-full">
+      
+      {/* SCROLLABLE CONTENT */}
+      <div className="flex-1 overflow-y-auto w-full overscroll-none scrollbar-hide">
           {activeTab === 'dashboard' && renderDashboard()}
           {activeTab === 'history' && renderHistory()}
           {activeTab === 'profile' && renderProfile()}
       </div>
-      <div className="absolute bottom-0 w-full bg-white border-t border-slate-100 py-3 px-6 pb-6 rounded-t-2xl shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-30 flex justify-between items-center">
+      
+      {/* FOOTER FIXED */}
+      <div className="bg-white border-t border-slate-100 py-3 px-6 pb-6 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] z-30 flex justify-between items-center shrink-0">
           <button onClick={() => setActiveTab('dashboard')} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'dashboard' ? 'text-blue-600 scale-105' : 'text-slate-400'}`}>
               <div className={`p-1.5 rounded-xl ${activeTab === 'dashboard' ? 'bg-blue-50' : 'bg-transparent'}`}><LayoutDashboard size={22} strokeWidth={activeTab === 'dashboard' ? 2.5 : 2} /></div>
               <span className="text-[10px] font-bold">Dashboard</span>
